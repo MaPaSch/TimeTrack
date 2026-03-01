@@ -1,0 +1,22 @@
+{
+    "name": "TimeTrack - Zeiterfassung",
+    "short_name": "TimeTrack",
+    "description": "Minimalistische Zeiterfassung für Freelancer und Angestellte",
+    "lang": "de-DE",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#2d5a45",
+    "theme_color": "#2d5a45",
+    "orientation": "portrait-primary",
+    "scope": "/",
+    "icons": [
+        {
+            "src": "icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": ["productivity", "utilities"],
+    "prefer_related_applications": false
+}
