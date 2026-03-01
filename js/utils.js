@@ -43,7 +43,7 @@ const Utils = (function() {
      * @returns {string} Kompakte Zeit
      */
     function formatDuration(ms) {
-        const totalMinutes = Math.floor(ms / 60000);
+        const totalMinutes = Math.ceil(ms / 60000);
         const hours = Math.floor(totalMinutes / 60);
         const minutes = totalMinutes % 60;
 

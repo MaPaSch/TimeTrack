@@ -374,14 +374,36 @@ const App = (function() {
     // Timer Event Handlers
     // ========================================
 
-    function handleTimerToggle() {
-        const result = Timer.toggle();
-        
-        if (result) {
-            // Timer wurde gestoppt - Modal öffnen
-            pendingTimerData = result;
-            UI.prepareSaveEntryModal(result, companies, categories);
-            UI.openModal(UI.getElements().modalSaveEntry);
+    function handleTimerMainClick() {
+        if (Timer.isRunning()) {
+            // Timer läuft -> Stop (Eintrag speichern)
+            const result = Timer.stop();
+            if (result) {
+                pendingTimerData = result;
+                UI.prepareSaveEntryModal(result, companies, categories);
+                UI.openModal(UI.getElements().modalSaveEntry);
+            }
+        } else if (Timer.isPaused()) {
+            // Timer pausiert -> Fortsetzen
+            Timer.resume();
+        } else {
+            // Timer gestoppt -> Start
+            Timer.start();
+        }
+    }
+
+    function handleTimerSecondaryClick() {
+        if (Timer.isRunning()) {
+            // Timer läuft -> Pause
+            Timer.pause();
+        } else if (Timer.isPaused()) {
+            // Timer pausiert -> Stop (Eintrag speichern)
+            const result = Timer.stop();
+            if (result) {
+                pendingTimerData = result;
+                UI.prepareSaveEntryModal(result, companies, categories);
+                UI.openModal(UI.getElements().modalSaveEntry);
+            }
         }
     }
 
@@ -390,8 +412,8 @@ const App = (function() {
     }
 
     function handleTimerStateChange(state) {
-        UI.updateTimerState(state.isRunning);
-        if (!state.isRunning && state.elapsed === 0) {
+        UI.updateTimerState(state.isRunning, state.isPaused);
+        if (!state.isRunning && !state.isPaused && state.elapsed === 0) {
             UI.updateTimerDisplay(0);
         }
     }
@@ -1171,8 +1193,9 @@ const App = (function() {
     function bindEvents() {
         const els = UI.getElements();
 
-        // Timer Button
-        els.btnTimerToggle.addEventListener('click', handleTimerToggle);
+        // Timer Buttons
+        els.btnTimerMain.addEventListener('click', handleTimerMainClick);
+        els.btnTimerSecondary.addEventListener('click', handleTimerSecondaryClick);
 
         // Navigation
         els.navItems.forEach(item => {

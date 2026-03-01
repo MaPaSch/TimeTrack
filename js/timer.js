@@ -9,8 +9,10 @@ const Timer = (function() {
     // Timer State
     const state = {
         isRunning: false,
+        isPaused: false,
         startTime: null,
         elapsed: 0,
+        accumulatedTime: 0,
         animationFrameId: null
     };
 
@@ -30,11 +32,24 @@ const Timer = (function() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (parsed.isRunning && parsed.startTime) {
-                    // Timer war aktiv - fortsetzen
+                const accumulated = parsed.accumulatedTime || 0;
+
+                if (parsed.isPaused) {
+                    state.isPaused = true;
+                    state.isRunning = false;
+                    state.accumulatedTime = accumulated;
+                    state.startTime = parsed.originalStartTime || null;
+                    state.elapsed = accumulated;
+                    notifyStateChange();
+                    if (typeof onTick === 'function') {
+                        onTick(state.elapsed);
+                    }
+                } else if (parsed.isRunning && parsed.startTime) {
                     state.isRunning = true;
-                    state.startTime = parsed.startTime;
-                    state.elapsed = Date.now() - state.startTime;
+                    state.startTime = parsed.originalStartTime || parsed.startTime;
+                    state._segmentStart = parsed.startTime;
+                    state.accumulatedTime = accumulated;
+                    state.elapsed = accumulated + (Date.now() - parsed.startTime);
                     startTicking();
                     notifyStateChange();
                 }
@@ -51,7 +66,10 @@ const Timer = (function() {
         try {
             const toSave = {
                 isRunning: state.isRunning,
-                startTime: state.startTime
+                isPaused: state.isPaused,
+                startTime: state.isRunning ? state._segmentStart : null,
+                originalStartTime: state.startTime,
+                accumulatedTime: state.accumulatedTime
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
         } catch (e) {
@@ -77,7 +95,7 @@ const Timer = (function() {
         function tick() {
             if (!state.isRunning) return;
 
-            state.elapsed = Date.now() - state.startTime;
+            state.elapsed = state.accumulatedTime + (Date.now() - state._segmentStart);
             
             if (typeof onTick === 'function') {
                 onTick(state.elapsed);
@@ -106,6 +124,7 @@ const Timer = (function() {
         if (typeof onStateChange === 'function') {
             onStateChange({
                 isRunning: state.isRunning,
+                isPaused: state.isPaused,
                 elapsed: state.elapsed,
                 startTime: state.startTime
             });
@@ -119,7 +138,10 @@ const Timer = (function() {
         if (state.isRunning) return;
 
         state.isRunning = true;
+        state.isPaused = false;
         state.startTime = Date.now();
+        state._segmentStart = Date.now();
+        state.accumulatedTime = 0;
         state.elapsed = 0;
 
         saveState();
@@ -132,18 +154,27 @@ const Timer = (function() {
      * @returns {Object} { startTime, endTime, duration }
      */
     function stop() {
-        if (!state.isRunning) return null;
+        if (!state.isRunning && !state.isPaused) return null;
 
         stopTicking();
         
         const endTime = Date.now();
+        let duration;
+        if (state.isPaused) {
+            duration = state.accumulatedTime;
+        } else {
+            duration = state.accumulatedTime + (endTime - state._segmentStart);
+        }
+
         const result = {
             startTime: state.startTime,
             endTime: endTime,
-            duration: endTime - state.startTime
+            duration: duration
         };
 
         state.isRunning = false;
+        state.isPaused = false;
+        state.accumulatedTime = 0;
         state.elapsed = result.duration;
 
         clearState();
@@ -157,13 +188,48 @@ const Timer = (function() {
     }
 
     /**
+     * Pausiert den Timer
+     */
+    function pause() {
+        if (!state.isRunning) return;
+
+        stopTicking();
+
+        state.accumulatedTime += Date.now() - state._segmentStart;
+        state.elapsed = state.accumulatedTime;
+        state.isRunning = false;
+        state.isPaused = true;
+
+        saveState();
+        notifyStateChange();
+    }
+
+    /**
+     * Setzt den Timer nach einer Pause fort
+     */
+    function resume() {
+        if (!state.isPaused) return;
+
+        state.isPaused = false;
+        state.isRunning = true;
+        state._segmentStart = Date.now();
+
+        saveState();
+        startTicking();
+        notifyStateChange();
+    }
+
+    /**
      * Setzt den Timer zurück ohne zu speichern
      */
     function reset() {
         stopTicking();
         
         state.isRunning = false;
+        state.isPaused = false;
         state.startTime = null;
+        state._segmentStart = null;
+        state.accumulatedTime = 0;
         state.elapsed = 0;
 
         clearState();
@@ -175,15 +241,15 @@ const Timer = (function() {
     }
 
     /**
-     * Toggle Timer Start/Stop
-     * @returns {Object|null} Bei Stop: Zeiteintrag-Daten
+     * Toggle Timer Start/Pause/Resume
      */
     function toggle() {
         if (state.isRunning) {
-            return stop();
+            pause();
+        } else if (state.isPaused) {
+            resume();
         } else {
             start();
-            return null;
         }
     }
 
@@ -196,12 +262,20 @@ const Timer = (function() {
     }
 
     /**
+     * Gibt zurück ob der Timer pausiert ist
+     * @returns {boolean}
+     */
+    function isPaused() {
+        return state.isPaused;
+    }
+
+    /**
      * Gibt die aktuelle verstrichene Zeit zurück
      * @returns {number} Millisekunden
      */
     function getElapsed() {
         if (state.isRunning) {
-            return Date.now() - state.startTime;
+            return state.accumulatedTime + (Date.now() - state._segmentStart);
         }
         return state.elapsed;
     }
@@ -250,9 +324,12 @@ const Timer = (function() {
         init,
         start,
         stop,
+        pause,
+        resume,
         reset,
         toggle,
         isRunning,
+        isPaused,
         getElapsed,
         getStartTime,
         setOnTick,

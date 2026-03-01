@@ -72,15 +72,27 @@
                         <span class="timer__separator">:</span>
                         <span id="timer-seconds" class="timer__segment">00</span>
                     </div>
-                    <button id="btn-timer-toggle" class="btn btn--primary btn--large timer__button" aria-label="Timer starten">
-                        <svg class="btn__icon" id="icon-play" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M8 5v14l11-7z"/>
-                        </svg>
-                        <svg class="btn__icon btn__icon--hidden" id="icon-stop" viewBox="0 0 24 24" fill="currentColor">
-                            <rect x="6" y="6" width="12" height="12"/>
-                        </svg>
-                        <span id="btn-timer-text">Start</span>
-                    </button>
+                    <div class="timer__buttons">
+                        <button id="btn-timer-main" class="btn btn--primary btn--large timer__button" aria-label="Timer starten">
+                            <svg class="btn__icon" id="icon-play" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                            <svg class="btn__icon btn__icon--hidden" id="icon-stop" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="6" width="12" height="12"/>
+                            </svg>
+                            <span id="btn-timer-main-text">Start</span>
+                        </button>
+                        <button id="btn-timer-secondary" class="btn btn--secondary timer__button--secondary timer__button--hidden" aria-label="Pause">
+                            <svg class="btn__icon" id="icon-secondary-pause" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="4" width="4" height="16"/>
+                                <rect x="14" y="4" width="4" height="16"/>
+                            </svg>
+                            <svg class="btn__icon btn__icon--hidden" id="icon-secondary-stop" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="6" width="12" height="12"/>
+                            </svg>
+                            <span id="btn-timer-secondary-text">Pause</span>
+                        </button>
+                    </div>
                     <p class="timer__status" id="timer-status">Bereit zum Starten</p>
                 </div>
             </section>

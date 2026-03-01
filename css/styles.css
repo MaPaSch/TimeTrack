@@ -342,13 +342,69 @@ body {
     animation: pulse 1s ease-in-out infinite;
 }
 
-.timer--running .btn.timer__button {
+.timer__buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-md);
+}
+
+.timer__button--hidden {
+    display: none !important;
+}
+
+.btn.timer__button--secondary {
+    width: 140px;
+    height: 44px;
+    min-height: 44px;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-medium);
+    padding: 0 var(--spacing-md);
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+}
+
+.btn.timer__button--secondary:hover,
+.btn.timer__button--secondary:active {
+    background-color: var(--color-border);
+}
+
+.btn.timer__button--secondary .btn__icon {
+    width: 18px;
+    height: 18px;
+}
+
+.timer--running .btn.timer__button#btn-timer-main {
     background-color: var(--color-destructive);
 }
 
-.timer--running .btn.timer__button:hover,
-.timer--running .btn.timer__button:active {
+.timer--running .btn.timer__button#btn-timer-main:hover,
+.timer--running .btn.timer__button#btn-timer-main:active {
     background-color: var(--color-destructive-hover);
+}
+
+.timer--paused .timer__separator {
+    opacity: 0.4;
+}
+
+.timer--paused .btn.timer__button--secondary {
+    background-color: var(--color-destructive-light);
+    color: var(--color-destructive);
+    border-color: var(--color-destructive);
+}
+
+.timer--paused .btn.timer__button--secondary:hover,
+.timer--paused .btn.timer__button--secondary:active {
+    background-color: var(--color-destructive);
+    color: #FFFFFF;
 }
 
 @keyframes pulse {
@@ -1848,6 +1904,18 @@ body {
     .btn.timer__button .btn__icon {
         width: 64px;
         height: 64px;
+    }
+    
+    .btn.timer__button--secondary {
+        width: 120px;
+        height: 40px;
+        min-height: 40px;
+        font-size: var(--font-size-xs);
+    }
+    
+    .btn.timer__button--secondary .btn__icon {
+        width: 16px;
+        height: 16px;
     }
 }
 

@@ -24,10 +24,14 @@ const UI = (function() {
         elements.timerMinutes = document.getElementById('timer-minutes');
         elements.timerSeconds = document.getElementById('timer-seconds');
         elements.timerStatus = document.getElementById('timer-status');
-        elements.btnTimerToggle = document.getElementById('btn-timer-toggle');
-        elements.btnTimerText = document.getElementById('btn-timer-text');
+        elements.btnTimerMain = document.getElementById('btn-timer-main');
+        elements.btnTimerSecondary = document.getElementById('btn-timer-secondary');
+        elements.btnTimerMainText = document.getElementById('btn-timer-main-text');
+        elements.btnTimerSecondaryText = document.getElementById('btn-timer-secondary-text');
         elements.iconPlay = document.getElementById('icon-play');
         elements.iconStop = document.getElementById('icon-stop');
+        elements.iconSecondaryPause = document.getElementById('icon-secondary-pause');
+        elements.iconSecondaryStop = document.getElementById('icon-secondary-stop');
         
         // Navigation
         elements.navItems = document.querySelectorAll('.nav__item');
@@ -219,26 +223,73 @@ const UI = (function() {
     /**
      * Aktualisiert den Timer-Zustand (Button, Status, etc.)
      * @param {boolean} isRunning 
+     * @param {boolean} isPaused 
      */
-    function updateTimerState(isRunning) {
+    function updateTimerState(isRunning, isPaused) {
         const timerContainer = elements.viewTimer.querySelector('.timer');
         const timerDisplay = elements.viewTimer.querySelector('.timer__display');
         
         if (isRunning) {
+            // Timer läuft: Main=Stop (rot), Secondary=Pause
             timerContainer.classList.add('timer--running');
+            timerContainer.classList.remove('timer--paused');
             timerDisplay.classList.remove('timer__display--hidden');
-            elements.btnTimerText.textContent = 'Stop';
+            
+            // Main Button: Stop
+            elements.btnTimerMainText.textContent = 'Stop';
             elements.iconPlay.classList.add('btn__icon--hidden');
             elements.iconStop.classList.remove('btn__icon--hidden');
+            elements.btnTimerMain.classList.remove('btn--primary');
+            elements.btnTimerMain.classList.add('btn--destructive');
+            elements.btnTimerMain.setAttribute('aria-label', 'Timer stoppen');
+            
+            // Secondary Button: Pause (sichtbar)
+            elements.btnTimerSecondary.classList.remove('timer__button--hidden');
+            elements.btnTimerSecondaryText.textContent = 'Pause';
+            elements.iconSecondaryPause.classList.remove('btn__icon--hidden');
+            elements.iconSecondaryStop.classList.add('btn__icon--hidden');
+            elements.btnTimerSecondary.setAttribute('aria-label', 'Timer pausieren');
+            
             elements.timerStatus.textContent = 'Timer läuft...';
-            elements.btnTimerToggle.setAttribute('aria-label', 'Timer stoppen');
-        } else {
+        } else if (isPaused) {
+            // Timer pausiert: Main=Fortsetzen (grün), Secondary=Stop
             timerContainer.classList.remove('timer--running');
-            elements.btnTimerText.textContent = 'Start';
+            timerContainer.classList.add('timer--paused');
+            timerDisplay.classList.remove('timer__display--hidden');
+            
+            // Main Button: Fortsetzen
+            elements.btnTimerMainText.textContent = 'Fortsetzen';
             elements.iconPlay.classList.remove('btn__icon--hidden');
             elements.iconStop.classList.add('btn__icon--hidden');
+            elements.btnTimerMain.classList.add('btn--primary');
+            elements.btnTimerMain.classList.remove('btn--destructive');
+            elements.btnTimerMain.setAttribute('aria-label', 'Timer fortsetzen');
+            
+            // Secondary Button: Stop (sichtbar)
+            elements.btnTimerSecondary.classList.remove('timer__button--hidden');
+            elements.btnTimerSecondaryText.textContent = 'Stop';
+            elements.iconSecondaryPause.classList.add('btn__icon--hidden');
+            elements.iconSecondaryStop.classList.remove('btn__icon--hidden');
+            elements.btnTimerSecondary.setAttribute('aria-label', 'Timer stoppen');
+            
+            elements.timerStatus.textContent = 'Timer pausiert';
+        } else {
+            // Timer gestoppt: Main=Start (grün), Secondary=versteckt
+            timerContainer.classList.remove('timer--running');
+            timerContainer.classList.remove('timer--paused');
+            
+            // Main Button: Start
+            elements.btnTimerMainText.textContent = 'Start';
+            elements.iconPlay.classList.remove('btn__icon--hidden');
+            elements.iconStop.classList.add('btn__icon--hidden');
+            elements.btnTimerMain.classList.add('btn--primary');
+            elements.btnTimerMain.classList.remove('btn--destructive');
+            elements.btnTimerMain.setAttribute('aria-label', 'Timer starten');
+            
+            // Secondary Button: versteckt
+            elements.btnTimerSecondary.classList.add('timer__button--hidden');
+            
             elements.timerStatus.textContent = 'Bereit zum Starten';
-            elements.btnTimerToggle.setAttribute('aria-label', 'Timer starten');
         }
     }
 
