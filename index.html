@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TimeTrack">
+    <meta name="theme-color" content="#2d5a45">
+    <meta name="description" content="Minimalistische Zeiterfassung für Freelancer">
+    
+    <title>TimeTrack</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+    
+    <!-- Theme Flash Prevention - Muss vor Body geladen werden -->
+    <script>
+        (function() {
+            var theme = localStorage.getItem('timetrack-theme');
+            if (!theme) {
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', theme);
+            // Meta theme-color anpassen
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) {
+                meta.setAttribute('content', theme === 'dark' ? '#121212' : '#2d5a45');
+            }
+        })();
+    </script>
+</head>
+<body>
+    <!-- App Container -->
+    <div id="app" class="app">
+        
+        <!-- Header -->
+        <header class="header">
+            <svg class="header__logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="TimeTrack">
+                <text x="100" y="30" 
+                      font-family="'Outfit', sans-serif" 
+                      font-size="28" 
+                      text-anchor="middle"
+                      letter-spacing="-0.5">
+                    <tspan class="logo__primary" font-weight="600">Time</tspan><tspan class="logo__secondary" font-weight="400">Track</tspan>
+                </text>
+            </svg>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main">
+            
+            <!-- Timer View -->
+            <section id="view-timer" class="view view--active" data-view="timer">
+                <div class="timer">
+                    <div class="timer__display timer__display--hidden">
+                        <span id="timer-hours" class="timer__segment">00</span>
+                        <span class="timer__separator">:</span>
+                        <span id="timer-minutes" class="timer__segment">00</span>
+                        <span class="timer__separator">:</span>
+                        <span id="timer-seconds" class="timer__segment">00</span>
+                    </div>
+                    <button id="btn-timer-toggle" class="btn btn--primary btn--large timer__button" aria-label="Timer starten">
+                        <svg class="btn__icon" id="icon-play" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M8 5v14l11-7z"/>
+                        </svg>
+                        <svg class="btn__icon btn__icon--hidden" id="icon-stop" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="6" y="6" width="12" height="12"/>
+                        </svg>
+                        <span id="btn-timer-text">Start</span>
+                    </button>
+                    <p class="timer__status" id="timer-status">Bereit zum Starten</p>
+                </div>
+            </section>
+
+            <!-- Entries View -->
+            <section id="view-entries" class="view" data-view="entries">
+                <div class="entries-view">
+                    <!-- Filter Bar -->
+                    <div class="filter-bar">
+                        <div class="filter-bar__group">
+                            <label class="filter-bar__label" for="entries-filter-period">Zeitraum</label>
+                            <select id="entries-filter-period" class="select">
+                                <option value="day">Heute</option>
+                                <option value="week">Diese Woche</option>
+                                <option value="month" selected>Dieser Monat</option>
+                                <option value="year">Dieses Jahr</option>
+                            </select>
+                        </div>
+                        <div class="filter-bar__group">
+                            <label class="filter-bar__label" for="entries-filter-company">Unternehmen</label>
+                            <select id="entries-filter-company" class="select">
+                                <option value="all">Alle</option>
+                                <!-- Dynamisch gefüllt -->
+                            </select>
+                        </div>
+                        <div class="filter-bar__group">
+                            <label class="filter-bar__label" for="entries-filter-category">Kategorie</label>
+                            <select id="entries-filter-category" class="select">
+                                <option value="all">Alle</option>
+                                <!-- Dynamisch gefüllt -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Entries List -->
+                    <div class="entries" id="entries-list">
+                        <!-- Dynamisch gefüllt -->
+                        <div class="entries__empty" id="entries-empty">
+                            <svg class="entries__empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 6v6l4 2"/>
+                            </svg>
+                            <p>Keine Einträge gefunden</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Date Navigator (fixiert unten) für Entries -->
+                <div class="date-picker__backdrop" id="entries-date-picker-backdrop"></div>
+                <div class="date-navigator date-navigator--entries" id="entries-date-navigator">
+                    <button class="date-navigator__btn" id="btn-entries-date-prev" aria-label="Zurück">
+                        <svg class="date-navigator__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M15 18l-6-6 6-6"/>
+                        </svg>
+                    </button>
+                    <button class="date-navigator__display" id="entries-date-navigator-display">
+                        <span id="entries-date-navigator-text">JANUAR 2026</span>
+                        <svg class="date-navigator__dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </button>
+                    <button class="date-navigator__btn" id="btn-entries-date-next" aria-label="Vor">
+                        <svg class="date-navigator__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18l6-6-6-6"/>
+                        </svg>
+                    </button>
+                    
+                    <!-- Date Picker Popup für Entries -->
+                    <div class="date-picker" id="entries-date-picker">
+                        <!-- Kalender für Tag und Woche -->
+                        <div class="date-picker__calendar" id="entries-date-picker-calendar">
+                            <div class="date-picker__header">
+                                <button class="date-picker__nav" id="btn-entries-picker-prev" aria-label="Vorheriger Monat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M15 18l-6-6 6-6"/>
+                                    </svg>
+                                </button>
+                                <span class="date-picker__title" id="entries-picker-calendar-title">Januar 2026</span>
+                                <button class="date-picker__nav" id="btn-entries-picker-next" aria-label="Nächster Monat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M9 18l6-6-6-6"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="date-picker__weekdays">
+                                <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+                            </div>
+                            <div class="date-picker__days" id="entries-picker-days">
+                                <!-- Dynamisch gefüllt -->
+                            </div>
+                        </div>
+                        
+                        <!-- Monat-Dropdown -->
+                        <div class="date-picker__months" id="entries-date-picker-months">
+                            <div class="date-picker__header">
+                                <button class="date-picker__nav" id="btn-entries-month-picker-prev" aria-label="Vorheriges Jahr">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M15 18l-6-6 6-6"/>
+                                    </svg>
+                                </button>
+                                <span class="date-picker__title" id="entries-picker-months-title">2026</span>
+                                <button class="date-picker__nav" id="btn-entries-month-picker-next" aria-label="Nächstes Jahr">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M9 18l6-6-6-6"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="date-picker__month-grid" id="entries-picker-month-grid">
+                                <!-- Dynamisch gefüllt -->
+                            </div>
+                        </div>
+                        
+                        <!-- Jahr-Dropdown -->
+                        <div class="date-picker__years" id="entries-date-picker-years">
+                            <div class="date-picker__year-list" id="entries-picker-year-list">
+                                <!-- Dynamisch gefüllt -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Analysis View -->
+            <section id="view-analysis" class="view" data-view="analysis">
+                <div class="analysis">
+                    <!-- Filter Bar -->
+                    <div class="filter-bar">
+                        <div class="filter-bar__group">
+                            <label class="filter-bar__label" for="filter-period">Zeitraum</label>
+                            <select id="filter-period" class="select">
+                                <option value="day">Heute</option>
+                                <option value="week">Diese Woche</option>
+                                <option value="month" selected>Dieser Monat</option>
+                                <option value="year">Dieses Jahr</option>
+                            </select>
+                        </div>
+                        <div class="filter-bar__group">
+                            <label class="filter-bar__label" for="filter-company">Unternehmen</label>
+                            <select id="filter-company" class="select">
+                                <option value="all">Alle</option>
+                                <!-- Dynamisch gefüllt -->
+                            </select>
+                        </div>
+                        <div class="filter-bar__group">
+                            <label class="filter-bar__label" for="filter-category">Kategorie</label>
+                            <select id="filter-category" class="select">
+                                <option value="all">Alle</option>
+                                <!-- Dynamisch gefüllt -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Category Chart with Donut -->
+                    <div class="category-chart" id="category-chart">
+                        <div class="category-chart__donut" id="chart-pie"></div>
+                    </div>
+
+                    <!-- Category Bars -->
+                    <div class="category-bars" id="category-bars">
+                        <!-- Dynamisch gefüllt -->
+                    </div>
+                </div>
+
+                <!-- Date Navigator (fixiert unten) -->
+                <div class="date-picker__backdrop" id="date-picker-backdrop"></div>
+                <div class="date-navigator" id="date-navigator">
+                    <button class="date-navigator__btn" id="btn-date-prev" aria-label="Zurück">
+                        <svg class="date-navigator__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M15 18l-6-6 6-6"/>
+                        </svg>
+                    </button>
+                    <button class="date-navigator__display" id="date-navigator-display">
+                        <span id="date-navigator-text">JANUAR 2026</span>
+                        <svg class="date-navigator__dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </button>
+                    <button class="date-navigator__btn" id="btn-date-next" aria-label="Vor">
+                        <svg class="date-navigator__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18l6-6-6-6"/>
+                        </svg>
+                    </button>
+                    
+                    <!-- Date Picker Popup -->
+                    <div class="date-picker" id="date-picker">
+                        <!-- Kalender für Tag und Woche -->
+                        <div class="date-picker__calendar" id="date-picker-calendar">
+                            <div class="date-picker__header">
+                                <button class="date-picker__nav" id="btn-picker-prev" aria-label="Vorheriger Monat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M15 18l-6-6 6-6"/>
+                                    </svg>
+                                </button>
+                                <span class="date-picker__title" id="picker-calendar-title">Januar 2026</span>
+                                <button class="date-picker__nav" id="btn-picker-next" aria-label="Nächster Monat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M9 18l6-6-6-6"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="date-picker__weekdays">
+                                <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+                            </div>
+                            <div class="date-picker__days" id="picker-days">
+                                <!-- Dynamisch gefüllt -->
+                            </div>
+                        </div>
+                        
+                        <!-- Monat-Dropdown -->
+                        <div class="date-picker__months" id="date-picker-months">
+                            <div class="date-picker__header">
+                                <button class="date-picker__nav" id="btn-month-picker-prev" aria-label="Vorheriges Jahr">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M15 18l-6-6 6-6"/>
+                                    </svg>
+                                </button>
+                                <span class="date-picker__title" id="picker-months-title">2026</span>
+                                <button class="date-picker__nav" id="btn-month-picker-next" aria-label="Nächstes Jahr">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M9 18l6-6-6-6"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="date-picker__month-grid" id="picker-month-grid">
+                                <!-- Dynamisch gefüllt -->
+                            </div>
+                        </div>
+                        
+                        <!-- Jahr-Dropdown -->
+                        <div class="date-picker__years" id="date-picker-years">
+                            <div class="date-picker__year-list" id="picker-year-list">
+                                <!-- Dynamisch gefüllt -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Management View -->
+            <section id="view-management" class="view" data-view="management">
+                <div class="management">
+                    <!-- Theme Toggle Section -->
+                    <div class="management__section">
+                        <div class="management__header">
+                            <h2 class="management__title">Darstellung</h2>
+                        </div>
+                        <button id="btn-toggle-theme" class="management__nav-btn" aria-label="Theme wechseln">
+                            <svg class="management__nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="5"/>
+                                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                            </svg>
+                            <span>Light / Dark Mode</span>
+                            <svg class="management__nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 18l6-6-6-6"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Stammdaten Section -->
+                    <div class="management__section">
+                        <div class="management__header">
+                            <h2 class="management__title">Stammdaten</h2>
+                        </div>
+                        <button id="btn-open-stammdaten" class="management__nav-btn" aria-label="Unternehmen und Kategorien bearbeiten">
+                            <svg class="management__nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <span>Unternehmen & Kategorien</span>
+                            <svg class="management__nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 18l6-6-6-6"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Daten Section (Import/Export) -->
+                    <div class="management__section">
+                        <div class="management__header">
+                            <h2 class="management__title">Daten</h2>
+                        </div>
+                        <div class="management__button-group">
+                            <button id="btn-import" class="management__action-btn" aria-label="Daten importieren">
+                                <svg class="management__action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" y1="3" x2="12" y2="15"/>
+                                </svg>
+                                <span>Import</span>
+                            </button>
+                            <button id="btn-export" class="management__action-btn" aria-label="Daten exportieren">
+                                <svg class="management__action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                <span>Export</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Danger Zone Section -->
+                    <div class="management__section management__section--danger">
+                        <div class="management__header">
+                            <h2 class="management__title management__title--danger">Gefahrenzone</h2>
+                        </div>
+                        <button id="btn-delete-all" class="management__danger-btn" aria-label="Alle Daten löschen">
+                            <svg class="management__danger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                <line x1="10" y1="11" x2="10" y2="17"/>
+                                <line x1="14" y1="11" x2="14" y2="17"/>
+                            </svg>
+                            <span>Alle Daten löschen</span>
+                        </button>
+                    </div>
+
+                    <!-- Footer with Credits -->
+                    <footer class="management__footer">
+                        <svg class="management__logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" width="160" height="32" role="img" aria-label="TimeTrack">
+                            <text x="100" y="30" 
+                                  font-family="'Outfit', sans-serif" 
+                                  font-size="28" 
+                                  text-anchor="middle"
+                                  letter-spacing="-0.5">
+                                <tspan class="logo__primary" font-weight="600">Time</tspan><tspan class="logo__secondary" font-weight="400">Track</tspan>
+                            </text>
+                        </svg>
+                        <p class="management__copyright">© Maximilian Schneider</p>
+                        <p class="management__version">App Version 1.0.1</p>
+                    </footer>
+                </div>
+            </section>
+
+            <!-- Management Stammdaten Subpage -->
+            <section id="view-management-data" class="view" data-view="management-data">
+                <div class="subpage">
+                    <!-- Subpage Header -->
+                    <div class="subpage__header">
+                        <button id="btn-back-management" class="subpage__back" aria-label="Zurück zur Verwaltung">
+                            <svg class="subpage__back-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M15 18l-6-6 6-6"/>
+                            </svg>
+                        </button>
+                        <h2 class="subpage__title">Stammdaten</h2>
+                    </div>
+
+                    <!-- Companies Section -->
+                    <div class="management__section">
+                        <div class="management__header">
+                            <h2 class="management__title">Unternehmen</h2>
+                            <button id="btn-add-company" class="btn btn--primary btn--small" aria-label="Unternehmen hinzufügen">
+                                <svg class="btn__icon" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                </svg>
+                                <span>Neu</span>
+                            </button>
+                        </div>
+                        <ul class="management__list" id="companies-list">
+                            <!-- Dynamisch gefüllt -->
+                        </ul>
+                        <p class="management__empty" id="companies-empty">Keine Unternehmen vorhanden</p>
+                    </div>
+
+                    <!-- Categories Section -->
+                    <div class="management__section">
+                        <div class="management__header">
+                            <h2 class="management__title">Kategorien</h2>
+                            <button id="btn-add-category" class="btn btn--primary btn--small" aria-label="Kategorie hinzufügen">
+                                <svg class="btn__icon" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                </svg>
+                                <span>Neu</span>
+                            </button>
+                        </div>
+                        <ul class="management__list management__list--categories" id="categories-list">
+                            <!-- Dynamisch gefüllt mit farbigen Balken -->
+                        </ul>
+                        <p class="management__empty" id="categories-empty">Keine Kategorien vorhanden</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="nav" role="navigation" aria-label="Hauptnavigation">
+            <button class="nav__item nav__item--active" data-nav="timer" aria-label="Timer">
+                <svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 6v6l4 2"/>
+                </svg>
+                <span class="nav__label">Timer</span>
+            </button>
+            <button class="nav__item" data-nav="entries" aria-label="Einträge">
+                <svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+                </svg>
+                <span class="nav__label">Einträge</span>
+            </button>
+            <button class="nav__item" data-nav="analysis" aria-label="Auswertung">
+                <svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 3v18h18"/>
+                    <path d="M18 9l-5 5-4-4-3 3"/>
+                </svg>
+                <span class="nav__label">Auswertung</span>
+            </button>
+            <button class="nav__item" data-nav="management" aria-label="Verwaltung">
+                <svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+                <span class="nav__label">Verwaltung</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Modal: Save Entry (after stopping timer) -->
+    <div id="modal-save-entry" class="modal modal--save-entry" role="dialog" aria-modal="true" aria-labelledby="modal-save-title">
+        <div class="modal__backdrop" data-save-entry-backdrop></div>
+        <div class="modal__content">
+            <div class="modal__header">
+                <h2 id="modal-save-title" class="modal__title">Eintrag speichern</h2>
+                <button type="button" class="modal__close" data-discard-entry aria-label="Verwerfen">
+                    <svg class="modal__close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="form-save-entry" class="form">
+                <div class="form__group">
+                    <label class="form__label" for="entry-duration">Dauer</label>
+                    <input type="text" id="entry-duration" class="input" readonly>
+                </div>
+                <div class="form__group">
+                    <label class="form__label" for="entry-company">Unternehmen *</label>
+                    <select id="entry-company" class="select" required>
+                        <option value="">Bitte wählen...</option>
+                        <!-- Dynamisch gefüllt -->
+                    </select>
+                </div>
+                <div class="form__group">
+                    <label class="form__label" for="entry-category">Kategorie</label>
+                    <select id="entry-category" class="select">
+                        <option value="">Keine Kategorie</option>
+                        <!-- Dynamisch gefüllt -->
+                        <option value="__new__">+ Neue Kategorie...</option>
+                    </select>
+                    <div id="inline-add-category" class="form__inline-add">
+                        <input type="text" id="inline-category-name" class="input" placeholder="Kategoriename eingeben...">
+                        <button type="button" id="btn-inline-add-category" class="btn btn--primary btn--small">
+                            <svg class="btn__icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        </button>
+                        <button type="button" id="btn-inline-cancel-category" class="btn btn--secondary btn--small">
+                            <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="form__group">
+                    <label class="form__label" for="entry-note">Notiz</label>
+                    <textarea id="entry-note" class="textarea" rows="3" placeholder="Optional..."></textarea>
+                </div>
+                <div class="form__actions">
+                    <button type="button" class="btn btn--secondary" data-discard-entry>Verwerfen</button>
+                    <button type="submit" class="btn btn--primary" id="btn-save-entry">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Edit Entry -->
+    <div id="modal-edit-entry" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-edit-title">
+        <div class="modal__backdrop" data-close-modal></div>
+        <div class="modal__content">
+            <h2 id="modal-edit-title" class="modal__title">Eintrag bearbeiten</h2>
+            <form id="form-edit-entry" class="form">
+                <input type="hidden" id="edit-entry-id">
+                <div class="form__group form__group--date-picker">
+                    <label class="form__label">Datum</label>
+                    <button type="button" class="input input--date" id="edit-date-btn">
+                        <span id="edit-date-display">01.01.2026</span>
+                        <svg class="input__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                    </button>
+                    <input type="hidden" id="edit-date" required>
+                    <!-- Kalender Popup -->
+                    <div class="edit-date-picker" id="edit-date-picker">
+                        <div class="edit-date-picker__header">
+                            <button type="button" class="date-picker__nav" id="btn-edit-picker-prev" aria-label="Vorheriger Monat">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M15 18l-6-6 6-6"/>
+                                </svg>
+                            </button>
+                            <span class="date-picker__title" id="edit-picker-title">Januar 2026</span>
+                            <button type="button" class="date-picker__nav" id="btn-edit-picker-next" aria-label="Nächster Monat">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 18l6-6-6-6"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="date-picker__weekdays">
+                            <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+                        </div>
+                        <div class="date-picker__days" id="edit-picker-days">
+                            <!-- Dynamisch gefüllt -->
+                        </div>
+                    </div>
+                </div>
+                <div class="form__row">
+                    <div class="form__group">
+                        <label class="form__label" for="edit-start">Start</label>
+                        <input type="text" id="edit-start" class="input input--time" required placeholder="00:00" maxlength="5" pattern="[0-2][0-9]:[0-5][0-9]">
+                    </div>
+                    <div class="form__group">
+                        <label class="form__label" for="edit-end">Ende</label>
+                        <input type="text" id="edit-end" class="input input--time" required placeholder="00:00" maxlength="5" pattern="[0-2][0-9]:[0-5][0-9]">
+                    </div>
+                </div>
+                <div class="form__group">
+                    <label class="form__label" for="edit-company">Unternehmen *</label>
+                    <select id="edit-company" class="select" required>
+                        <option value="">Bitte wählen...</option>
+                    </select>
+                </div>
+                <div class="form__group">
+                    <label class="form__label" for="edit-category">Kategorie</label>
+                    <select id="edit-category" class="select">
+                        <option value="">Keine Kategorie</option>
+                    </select>
+                </div>
+                <div class="form__group">
+                    <label class="form__label" for="edit-note">Notiz</label>
+                    <textarea id="edit-note" class="textarea" rows="3" placeholder="Optional..."></textarea>
+                </div>
+                <div class="form__actions">
+                    <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
+                    <button type="submit" class="btn btn--primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add Company -->
+    <div id="modal-add-company" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-company-title">
+        <div class="modal__backdrop" data-close-modal></div>
+        <div class="modal__content">
+            <h2 id="modal-company-title" class="modal__title">Unternehmen hinzufügen</h2>
+            <form id="form-add-company" class="form">
+                <div class="form__group">
+                    <label class="form__label" for="company-name">Name</label>
+                    <input type="text" id="company-name" class="input" required placeholder="z.B. Musterfirma GmbH">
+                </div>
+                <div class="form__actions">
+                    <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
+                    <button type="submit" class="btn btn--primary">Hinzufügen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add Category -->
+    <div id="modal-add-category" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-category-title">
+        <div class="modal__backdrop" data-close-modal></div>
+        <div class="modal__content">
+            <h2 id="modal-category-title" class="modal__title">Kategorie hinzufügen</h2>
+            <form id="form-add-category" class="form">
+                <div class="form__group">
+                    <label class="form__label" for="category-name">Name</label>
+                    <input type="text" id="category-name" class="input" required placeholder="z.B. Meetings">
+                </div>
+                <div class="form__actions">
+                    <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
+                    <button type="submit" class="btn btn--primary">Hinzufügen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Confirm Delete -->
+    <div id="modal-confirm-delete" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-delete-title">
+        <div class="modal__backdrop" data-close-modal></div>
+        <div class="modal__content">
+            <h2 id="modal-delete-title" class="modal__title">Löschen bestätigen</h2>
+            <p class="modal__text" id="delete-message">Möchten Sie diesen Eintrag wirklich löschen?</p>
+            <input type="hidden" id="delete-item-id">
+            <input type="hidden" id="delete-item-type">
+            <div class="form__actions">
+                <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
+                <button type="button" id="btn-confirm-delete" class="btn btn--destructive">Löschen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Discard Confirmation (for Save Entry) -->
+    <div id="modal-discard-confirm" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="modal-discard-title">
+        <div class="modal__backdrop"></div>
+        <div class="modal__content modal__content--compact">
+            <h2 id="modal-discard-title" class="modal__title">Änderungen speichern?</h2>
+            <p class="modal__text">Sie haben einen Zeiteintrag erfasst. Möchten Sie diesen speichern oder verwerfen?</p>
+            <div class="form__actions form__actions--stacked">
+                <button type="button" class="btn btn--primary" id="btn-confirm-save">Speichern</button>
+                <button type="button" class="btn btn--destructive" id="btn-confirm-discard">Verwerfen</button>
+                <button type="button" class="btn btn--secondary" id="btn-confirm-cancel">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Export Format Selection -->
+    <div id="modal-export-format" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="modal-export-title">
+        <div class="modal__backdrop" data-close-modal></div>
+        <div class="modal__content modal__content--compact">
+            <h2 id="modal-export-title" class="modal__title">Export-Format wählen</h2>
+            <p class="modal__text">In welchem Format möchten Sie Ihre Daten exportieren?</p>
+            <div class="form__actions form__actions--stacked">
+                <button type="button" class="btn btn--primary" id="btn-export-as-json">
+                    <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    Als JSON exportieren
+                </button>
+                <button type="button" class="btn btn--primary" id="btn-export-as-csv">
+                    <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="8" y1="13" x2="16" y2="13"/>
+                        <line x1="8" y1="17" x2="16" y2="17"/>
+                    </svg>
+                    Als CSV exportieren
+                </button>
+                <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Delete All Confirmation -->
+    <div id="modal-delete-all" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="modal-delete-all-title">
+        <div class="modal__backdrop" data-close-modal></div>
+        <div class="modal__content modal__content--compact">
+            <h2 id="modal-delete-all-title" class="modal__title modal__title--danger">Alle Daten löschen?</h2>
+            <p class="modal__text">Diese Aktion kann nicht rückgängig gemacht werden! Alle Unternehmen, Kategorien und Zeiteinträge werden unwiderruflich gelöscht.</p>
+            <div class="form__group">
+                <label class="form__label" for="delete-confirmation-input">Geben Sie <strong>DELETE</strong> ein um zu bestätigen:</label>
+                <input type="text" id="delete-confirmation-input" class="input" placeholder="DELETE" autocomplete="off">
+            </div>
+            <div class="form__actions">
+                <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
+                <button type="button" class="btn btn--destructive btn--disabled" id="btn-confirm-delete-all" disabled>Unwiderruflich löschen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Initial Company Setup (appears on first start) -->
+    <div id="modal-initial-company" class="modal modal--initial" role="dialog" aria-modal="true" aria-labelledby="modal-initial-company-title">
+        <div class="modal__backdrop"></div>
+        <div class="modal__content">
+            <h2 id="modal-initial-company-title" class="modal__title">Willkommen bei TimeTrack!</h2>
+            <p class="modal__text">Um zu beginnen, legen Sie bitte Ihr erstes Unternehmen an. Dieses wird als Standard für Ihre Zeiterfassungen verwendet.</p>
+            <form id="form-initial-company" class="form">
+                <div class="form__group">
+                    <label class="form__label" for="initial-company-name">Unternehmensname *</label>
+                    <input type="text" id="initial-company-name" class="input" required placeholder="z.B. Musterfirma GmbH" autofocus>
+                </div>
+                <div class="form__actions">
+                    <button type="submit" class="btn btn--primary btn--full-width" id="btn-save-initial-company">Unternehmen anlegen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Hidden File Input for Import -->
+    <input type="file" id="file-import-input" accept=".json" style="display: none;">
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- Scripts -->
+    <script src="js/utils.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/timer.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
