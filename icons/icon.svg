@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <style>
+      .bg { fill: #2d5a45; }
+      .clock { fill: none; stroke: #ffffff; stroke-width: 24; stroke-linecap: round; }
+      .face { fill: #ffffff; }
+      .hands { fill: none; stroke: #2d5a45; stroke-width: 20; stroke-linecap: round; }
+      .center { fill: #2d5a45; }
+    </style>
+  </defs>
+  <!-- Background -->
+  <rect class="bg" width="512" height="512" rx="96"/>
+  <!-- Clock Face -->
+  <circle class="face" cx="256" cy="256" r="160"/>
+  <!-- Hour Markers -->
+  <g class="clock" stroke-width="16">
+    <line x1="256" y1="116" x2="256" y2="136"/>
+    <line x1="256" y1="376" x2="256" y2="396"/>
+    <line x1="116" y1="256" x2="136" y2="256"/>
+    <line x1="376" y1="256" x2="396" y2="256"/>
+  </g>
+  <!-- Hour Hand -->
+  <line class="hands" stroke-width="24" x1="256" y1="256" x2="256" y2="176"/>
+  <!-- Minute Hand -->
+  <line class="hands" stroke-width="18" x1="256" y1="256" x2="320" y2="200"/>
+  <!-- Center Dot -->
+  <circle class="center" cx="256" cy="256" r="16"/>
+</svg>
