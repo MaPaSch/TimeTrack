@@ -19,6 +19,14 @@ const App = (function() {
     // Aktuelles Datum für den Entries-Datumsnavigator
     let currentEntriesNavigatorDate = new Date();
 
+    // Auth State
+    let isAuthenticated = false;
+
+    /** Flag: Nutzer kam von E-Mail-Link zum Passwort-Zurücksetzen */
+    let pendingRecoveryRedirect = false;
+    /** Flag: Redirect mit Fehler (z. B. Link abgelaufen) */
+    let pendingResetLinkError = false;
+
     /**
      * Lädt alle Daten aus der Datenbank
      */
@@ -458,12 +466,27 @@ const App = (function() {
         }
 
         const els = UI.getElements();
-        const companyId = els.entryCompany.value;
+        let companyId = els.entryCompany.value;
         const categoryId = els.entryCategory.value;
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/02bef4e1-27ae-44d0-8fbe-5eca6579cc8d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app.js:handleSaveEntry:FORM_VALUES',message:'Formularwerte beim Speichern',data:{companyId:companyId,categoryId:categoryId,categoryDropdownValue:els.entryCategory.value,inlineVisible:els.inlineAddCategory?.classList?.contains('form__inline-add--visible')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
+
+        // Inline-Company-Eingabe aktiv?
+        if (UI.isInlineAddCompanyVisible()) {
+            const companyName = UI.getInlineCompanyName();
+            if (!companyName) {
+                UI.showToast('Bitte Unternehmensname eingeben', 'error');
+                els.inlineCompanyName.focus();
+                return false;
+            }
+            try {
+                const newCompany = await DB.addCompany({ name: companyName });
+                await loadData();
+                companyId = newCompany.id;
+            } catch (error) {
+                console.error('Fehler beim Anlegen des Unternehmens:', error);
+                UI.showToast('Fehler beim Anlegen des Unternehmens', 'error');
+                return false;
+            }
+        }
         
         if (!companyId) {
             UI.showToast('Bitte wählen Sie ein Unternehmen', 'error');
@@ -481,15 +504,11 @@ const App = (function() {
             note: els.entryNote.value.trim() || null
         };
 
-        // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/02bef4e1-27ae-44d0-8fbe-5eca6579cc8d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app.js:handleSaveEntry:ENTRY_OBJECT',message:'Eintrag-Objekt vor DB-Speicherung',data:{entry:entry},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-
         try {
             await DB.addTimeEntry(entry);
-            // #region agent log
-            fetch('http://127.0.0.1:7244/ingest/02bef4e1-27ae-44d0-8fbe-5eca6579cc8d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app.js:handleSaveEntry:AFTER_DB_SAVE',message:'Eintrag in DB gespeichert',data:{savedCategoryId:entry.categoryId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-            // #endregion
+            
+            localStorage.setItem('timetrack-last-company', companyId);
+            
             UI.closeModal(els.modalSaveEntry);
             Timer.reset();
             pendingTimerData = null;
@@ -556,6 +575,19 @@ const App = (function() {
     }
 
     /**
+     * Handler für Unternehmen-Dropdown Änderung
+     */
+    function handleCompanyChange() {
+        const els = UI.getElements();
+        if (els.entryCompany.value === '__new__') {
+            UI.showInlineAddCompany();
+        } else {
+            UI.hideInlineAddCompany();
+            UI.updateSaveButtonState();
+        }
+    }
+
+    /**
      * Handler für Kategorie-Dropdown Änderung
      */
     function handleCategoryChange() {
@@ -616,6 +648,41 @@ const App = (function() {
      */
     function handleInlineCancelCategory() {
         UI.hideInlineAddCategory();
+    }
+
+    /**
+     * Handler für Inline-Unternehmen hinzufügen
+     */
+    async function handleInlineAddCompany() {
+        const name = UI.getInlineCompanyName();
+
+        if (!name) {
+            UI.showToast('Bitte geben Sie einen Namen ein', 'error');
+            return;
+        }
+
+        try {
+            const newCompany = await DB.addCompany({ name });
+            await loadData();
+
+            const els = UI.getElements();
+            UI.populateCompanySelect(els.entryCompany, companies, false, true);
+            els.entryCompany.value = newCompany.id;
+
+            UI.hideInlineAddCompany();
+            UI.updateSaveButtonState();
+            UI.showToast('Unternehmen hinzugefügt', 'success');
+        } catch (error) {
+            console.error('Fehler beim Anlegen des Unternehmens:', error);
+            UI.showToast('Fehler beim Anlegen des Unternehmens', 'error');
+        }
+    }
+
+    /**
+     * Handler für Inline-Unternehmen abbrechen
+     */
+    function handleInlineCancelCompany() {
+        UI.hideInlineAddCompany();
     }
 
     async function handleEditEntry(event) {
@@ -742,6 +809,13 @@ const App = (function() {
         const type = els.deleteItemType.value;
 
         try {
+            // Bei Cloud-Modus Löschung in Sync-Queue eintragen, damit sie in die Cloud übernommen wird
+            const typeToStore = { entry: 'timeEntries', company: 'companies', category: 'categories' };
+            const storeName = typeToStore[type];
+            if (storeName && Auth.isCloudMode()) {
+                await DB.addToSyncQueue(storeName, id, 'delete');
+            }
+
             switch (type) {
                 case 'entry':
                     await DB.deleteTimeEntry(id);
@@ -757,6 +831,12 @@ const App = (function() {
                     await loadData();
                     renderManagement();
                     break;
+            }
+
+            // Bei Cloud-Modus sofort Push auslösen, damit Löschungen in die DB übernommen werden
+            if (storeName && isCloudMode) {
+                const stats = { pushed: { companies: 0, categories: 0, timeEntries: 0 }, errors: [] };
+                Sync.pushPendingChanges(stats).catch(err => console.error('Sync nach Löschung:', err));
             }
             
             UI.closeModal(els.modalConfirmDelete);
@@ -1046,15 +1126,19 @@ const App = (function() {
                 return;
             }
 
+            // Legacy-Daten migrieren (falls nötig)
+            const migrationResult = migrateLegacyImportData(data.data);
+            const importData = migrationResult.data;
+
             // Import durchführen
-            const stats = await DB.importData(data.data);
+            const stats = await DB.importData(importData);
             
             // Daten neu laden
             await loadData();
             
             // Nach Import: Navigator-Datum auf neuesten importierten Eintrag setzen
-            if (data.data.timeEntries && data.data.timeEntries.length > 0) {
-                const newestEntry = data.data.timeEntries.reduce((newest, entry) => {
+            if (importData.timeEntries && importData.timeEntries.length > 0) {
+                const newestEntry = importData.timeEntries.reduce((newest, entry) => {
                     return (!newest || entry.startTime > newest.startTime) ? entry : newest;
                 }, null);
                 
@@ -1075,6 +1159,13 @@ const App = (function() {
                 if (stats.entriesAdded > 0) parts.push(`${stats.entriesAdded} Einträge`);
                 message += parts.join(', ');
                 UI.showToast(message, 'success');
+                
+                // Hinweis auf Migration anzeigen
+                if (migrationResult.wasMigrated) {
+                    setTimeout(() => {
+                        UI.showToast('Veraltete IDs wurden automatisch konvertiert', 'info');
+                    }, 2000);
+                }
             } else {
                 UI.showToast('Keine neuen Daten importiert (alle bereits vorhanden)', 'info');
             }
@@ -1103,6 +1194,90 @@ const App = (function() {
     }
 
     /**
+     * Prüft ob eine ID ein gültiges UUID-Format hat
+     * @param {string} id - Die zu prüfende ID
+     * @returns {boolean}
+     */
+    function isValidUuid(id) {
+        if (!id || typeof id !== 'string') return false;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(id);
+    }
+
+    /**
+     * Migriert veraltete Import-Daten mit beschreibenden IDs auf UUID-Format
+     * @param {Object} data - Die zu migrierenden Daten
+     * @returns {Object} - { data: migrierte Daten, wasMigrated: boolean }
+     */
+    function migrateLegacyImportData(data) {
+        const { companies = [], categories = [], timeEntries = [] } = data;
+        
+        // Prüfen ob Migration nötig ist
+        const needsMigration = 
+            companies.some(c => !isValidUuid(c.id)) ||
+            categories.some(c => !isValidUuid(c.id)) ||
+            timeEntries.some(e => !isValidUuid(e.id));
+        
+        if (!needsMigration) {
+            return { data, wasMigrated: false };
+        }
+        
+        // ID-Mapping erstellen (alte ID → neue UUID)
+        const idMap = new Map();
+        
+        // Companies migrieren
+        const migratedCompanies = companies.map(company => {
+            if (isValidUuid(company.id)) {
+                return company;
+            }
+            const newId = Utils.generateId();
+            idMap.set(company.id, newId);
+            return { ...company, id: newId };
+        });
+        
+        // Categories migrieren
+        const migratedCategories = categories.map(category => {
+            if (isValidUuid(category.id)) {
+                return category;
+            }
+            const newId = Utils.generateId();
+            idMap.set(category.id, newId);
+            return { ...category, id: newId };
+        });
+        
+        // TimeEntries migrieren (inkl. Referenzen)
+        const migratedTimeEntries = timeEntries.map(entry => {
+            const migrated = { ...entry };
+            
+            // Entry-ID migrieren
+            if (!isValidUuid(entry.id)) {
+                migrated.id = Utils.generateId();
+            }
+            
+            // CompanyId-Referenz aktualisieren
+            if (entry.companyId && idMap.has(entry.companyId)) {
+                migrated.companyId = idMap.get(entry.companyId);
+            }
+            
+            // CategoryId-Referenz aktualisieren
+            if (entry.categoryId && idMap.has(entry.categoryId)) {
+                migrated.categoryId = idMap.get(entry.categoryId);
+            }
+            
+            return migrated;
+        });
+        
+        return {
+            data: {
+                companies: migratedCompanies,
+                categories: migratedCategories,
+                timeEntries: migratedTimeEntries
+            },
+            wasMigrated: true
+        };
+    }
+
+    /**
      * Theme Toggle Handler - wechselt zwischen Light und Dark Mode
      */
     function handleThemeToggle() {
@@ -1117,6 +1292,7 @@ const App = (function() {
     function handleDeleteAllClick() {
         const els = UI.getElements();
         UI.resetDeleteAllModal();
+        UI.updateDeleteAllRadioState(Auth.isCloudMode());
         UI.openModal(els.modalDeleteAll);
     }
 
@@ -1124,8 +1300,26 @@ const App = (function() {
      * Führt das Löschen aller Daten durch
      */
     async function handleConfirmDeleteAll() {
+        const scope = UI.getDeleteScope();
+        
         try {
+            // Lokale Daten immer löschen
             await DB.deleteAllData();
+
+            // Bei "nur lokale Daten": Sync-Queue leeren, damit keine Pending-Deletes beim nächsten Sync in die Cloud gehen
+            if (scope !== 'both') {
+                await DB.clearSyncQueue();
+            }
+
+            // Cloud-Daten nur wenn "both" gewählt und angemeldet
+            if (scope === 'both' && Auth.isCloudMode()) {
+                const result = await SupabaseClient.hardDeleteAllUserData();
+                if (!result.success) {
+                    console.error('Fehler beim Löschen der Cloud-Daten:', result.error);
+                    UI.showToast('Lokale Daten gelöscht, Cloud-Fehler', 'warning');
+                }
+            }
+            
             await loadData();
             
             const els = UI.getElements();
@@ -1135,7 +1329,10 @@ const App = (function() {
             // Zur Management-Hauptseite zurückkehren falls auf Unterseite
             UI.hideStammdatenSubpage();
             
-            UI.showToast('Alle Daten wurden gelöscht', 'success');
+            const message = scope === 'both' 
+                ? 'Alle lokalen und Cloud-Daten wurden gelöscht' 
+                : 'Alle lokalen Daten wurden gelöscht';
+            UI.showToast(message, 'success');
         } catch (error) {
             console.error('Fehler beim Löschen aller Daten:', error);
             UI.showToast('Fehler beim Löschen', 'error');
@@ -1377,13 +1574,13 @@ const App = (function() {
         });
 
         // Save-Entry Form Field Changes (für Validierung)
-        els.entryCompany.addEventListener('change', UI.updateSaveButtonState);
+        els.entryCompany.addEventListener('change', handleCompanyChange);
         els.entryCategory.addEventListener('change', handleCategoryChange);
 
         // Inline Add Category
         els.btnInlineAddCategory.addEventListener('click', handleInlineAddCategory);
         els.btnInlineCancelCategory.addEventListener('click', handleInlineCancelCategory);
-        
+
         // Enter-Taste im Inline-Kategorie-Feld
         els.inlineCategoryName.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -1391,6 +1588,21 @@ const App = (function() {
                 handleInlineAddCategory();
             } else if (e.key === 'Escape') {
                 handleInlineCancelCategory();
+            }
+        });
+
+        // Inline Add Company
+        els.btnInlineAddCompany.addEventListener('click', handleInlineAddCompany);
+        if (els.btnInlineCancelCompany) {
+            els.btnInlineCancelCompany.addEventListener('click', handleInlineCancelCompany);
+        }
+        els.inlineCompanyName.addEventListener('input', UI.updateSaveButtonState);
+        els.inlineCompanyName.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleInlineAddCompany();
+            } else if (e.key === 'Escape') {
+                handleInlineCancelCompany();
             }
         });
 
@@ -1467,6 +1679,50 @@ const App = (function() {
             els.btnConfirmDeleteAll.addEventListener('click', handleConfirmDeleteAll);
         }
 
+        // Profile/Cloud Buttons
+        if (els.btnOpenProfile) {
+            els.btnOpenProfile.addEventListener('click', handleOpenProfile);
+        }
+        if (els.btnBackProfile) {
+            els.btnBackProfile.addEventListener('click', handleBackToManagementFromProfile);
+        }
+        if (els.formLogin) {
+            els.formLogin.addEventListener('submit', handleLogin);
+        }
+        if (els.btnShowRegister) {
+            els.btnShowRegister.addEventListener('click', handleShowRegister);
+        }
+        if (els.btnForgotPassword) {
+            els.btnForgotPassword.addEventListener('click', (e) => {
+                e.preventDefault();
+                handleForgotPasswordClick();
+            });
+        }
+        if (els.formForgotPassword) {
+            els.formForgotPassword.addEventListener('submit', handleForgotPasswordSubmit);
+        }
+        if (els.formRegister) {
+            els.formRegister.addEventListener('submit', handleRegister);
+        }
+        if (els.formResetPassword) {
+            els.formResetPassword.addEventListener('submit', handleSetNewPassword);
+        }
+        if (els.btnLogout) {
+            els.btnLogout.addEventListener('click', handleLogout);
+        }
+        if (els.btnSyncNow) {
+            els.btnSyncNow.addEventListener('click', handleSyncNow);
+        }
+        if (els.formChangePassword) {
+            els.formChangePassword.addEventListener('submit', handleChangePasswordSubmit);
+        }
+        if (els.btnShowChangePassword) {
+            els.btnShowChangePassword.addEventListener('click', () => UI.showChangePasswordForm());
+        }
+        if (els.btnCancelChangePassword) {
+            els.btnCancelChangePassword.addEventListener('click', () => UI.hideChangePasswordForm());
+        }
+        
         // ESC to close modals (mit spezieller Behandlung für Save-Entry)
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
@@ -1517,6 +1773,380 @@ const App = (function() {
     }
 
     // ========================================
+    // Profile/Cloud Handlers
+    // ========================================
+
+    /**
+     * Öffnet die Profil-Unterseite
+     */
+    function handleOpenProfile() {
+        UI.showProfileSubpage();
+    }
+
+    /**
+     * Schließt die Profil-Unterseite
+     */
+    function handleBackToManagementFromProfile() {
+        UI.hideProfileSubpage();
+    }
+
+    /**
+     * Handler für Login-Formular
+     */
+    async function handleLogin(event) {
+        event.preventDefault();
+        
+        const els = UI.getElements();
+        const email = els.loginEmail.value.trim();
+        const password = els.loginPassword.value;
+
+        UI.clearLoginError();
+        UI.setLoginLoading(true);
+
+        try {
+            const result = await Auth.signIn(email, password);
+            
+            if (result.success) {
+                UI.showToast('Erfolgreich angemeldet', 'success');
+                
+                // Prüfen ob Migration nötig ist
+                const localData = await DB.getAllData();
+                const localCount = localData.timeEntries.length;
+                
+                // Cloud-Daten zählen
+                let cloudCount = 0;
+                try {
+                    const { data: cloudEntries } = await SupabaseClient.fetchUserData('time_entries');
+                    cloudCount = cloudEntries ? cloudEntries.length : 0;
+                } catch (e) {
+                    cloudCount = 0;
+                }
+                
+                // Lokal + Cloud vorhanden: automatisch zusammenführen
+                if (localCount > 0 && cloudCount > 0) {
+                    UI.showToast('Daten werden zusammengeführt...', 'info');
+                    try {
+                        await Sync.migrateLocalToCloud();
+                        // Sync läuft bereits durch SIGNED_IN (startAutoSync). Nicht erneut syncAll()
+                        // aufrufen – sonst already_syncing oder Doppel-Sync. UI-Update via sync_complete.
+                        Sync.startAutoSync();
+                    } catch (err) {
+                        console.error('Migration Merge Error:', err);
+                        UI.showToast('Zusammenführung fehlgeschlagen', 'error');
+                    }
+                } else if (localCount > 0 && cloudCount === 0) {
+                    // Nur lokale Daten -> automatisch hochladen
+                    const migrationResult = await Sync.migrateLocalToCloud();
+                    if (migrationResult.success) {
+                        UI.showToast('Daten erfolgreich synchronisiert', 'success');
+                    }
+                } else if (localCount === 0 && cloudCount > 0) {
+                    // Nur Cloud-Daten -> automatisch herunterladen
+                    const pullResult = await Sync.pullFromCloud();
+                    if (pullResult.success) {
+                        await loadData();
+                        UI.showToast('Cloud-Daten geladen', 'success');
+                    }
+                }
+                
+                // Sync starten
+                Sync.startAutoSync();
+            } else {
+                UI.showLoginError(result.error);
+            }
+        } catch (error) {
+            console.error('Login Error:', error);
+            UI.showLoginError('Anmeldung fehlgeschlagen');
+        } finally {
+            UI.setLoginLoading(false);
+        }
+    }
+
+    /**
+     * Handler für Registrieren-Button (öffnet Modal)
+     */
+    function handleShowRegister() {
+        UI.openRegisterModal();
+    }
+
+    /**
+     * Handler für „Passwort vergessen“-Link (öffnet Modal)
+     */
+    function handleForgotPasswordClick() {
+        UI.openForgotPasswordModal();
+    }
+
+    /**
+     * Handler für Forgot-Password-Formular (Link senden)
+     */
+    async function handleForgotPasswordSubmit(event) {
+        event.preventDefault();
+
+        const els = UI.getElements();
+        const email = els.forgotEmail ? els.forgotEmail.value.trim() : '';
+
+        UI.showForgotPasswordError('');
+        UI.showForgotPasswordSuccess('');
+        if (!email || !email.includes('@')) {
+            UI.showForgotPasswordError('Bitte geben Sie eine gültige E-Mail-Adresse ein.');
+            return;
+        }
+
+        UI.setForgotPasswordLoading(true);
+
+        try {
+            const redirectUrl = typeof Config !== 'undefined' && typeof Config.getPasswordResetRedirectUrl === 'function'
+                ? Config.getPasswordResetRedirectUrl()
+                : undefined;
+            const result = await Auth.resetPasswordForEmail(email, redirectUrl);
+
+            if (result.success) {
+                UI.showForgotPasswordSuccess('Falls ein Konto mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen gesendet.');
+                if (els.forgotEmail) els.forgotEmail.value = '';
+            } else {
+                UI.showForgotPasswordError(result.error || 'Link konnte nicht gesendet werden.');
+            }
+        } catch (error) {
+            console.error('ForgotPassword Error:', error);
+            UI.showForgotPasswordError('Link konnte nicht gesendet werden. Bitte versuchen Sie es erneut.');
+        } finally {
+            UI.setForgotPasswordLoading(false);
+        }
+    }
+
+    /**
+     * Handler für „Neues Passwort setzen“-Formular (nach Recovery-Redirect)
+     */
+    async function handleSetNewPassword(event) {
+        event.preventDefault();
+
+        const els = UI.getElements();
+        const newPassword = els.resetPasswordNew ? els.resetPasswordNew.value : '';
+        const confirmPassword = els.resetPasswordConfirm ? els.resetPasswordConfirm.value : '';
+
+        UI.showResetPasswordError('');
+
+        if (!newPassword || newPassword.length < 6) {
+            UI.showResetPasswordError('Das Passwort muss mindestens 6 Zeichen lang sein.');
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            UI.showResetPasswordError('Die Passwörter stimmen nicht überein.');
+            return;
+        }
+
+        UI.setResetPasswordLoading(true);
+
+        try {
+            const result = await Auth.updatePassword(newPassword);
+
+            if (result.success) {
+                UI.closeResetPasswordModal();
+                UI.showToast('Passwort wurde aktualisiert', 'success');
+                UI.updateProfileUI(Auth.getUser());
+            } else {
+                UI.showResetPasswordError(result.error || 'Passwort konnte nicht aktualisiert werden.');
+            }
+        } catch (error) {
+            console.error('SetNewPassword Error:', error);
+            UI.showResetPasswordError('Passwort konnte nicht aktualisiert werden. Bitte versuchen Sie es erneut.');
+        } finally {
+            UI.setResetPasswordLoading(false);
+        }
+    }
+
+    /**
+     * Handler für Registrierungs-Formular
+     */
+    async function handleRegister(event) {
+        event.preventDefault();
+        
+        const els = UI.getElements();
+        const email = els.registerEmail.value.trim();
+        const password = els.registerPassword.value;
+        const passwordConfirm = els.registerPasswordConfirm.value;
+
+        UI.clearRegisterError();
+
+        // Passwort-Bestätigung prüfen
+        if (password !== passwordConfirm) {
+            UI.showRegisterError('Passwörter stimmen nicht überein');
+            return;
+        }
+
+        UI.setRegisterLoading(true);
+
+        try {
+            const result = await Auth.signUp(email, password);
+            
+            if (result.success) {
+                UI.closeRegisterModal();
+                
+                if (result.needsConfirmation) {
+                    UI.showToast(result.message, 'info');
+                } else {
+                    UI.showToast('Registrierung erfolgreich!', 'success');
+                }
+            } else {
+                UI.showRegisterError(result.error);
+            }
+        } catch (error) {
+            console.error('Register Error:', error);
+            UI.showRegisterError('Registrierung fehlgeschlagen');
+        } finally {
+            UI.setRegisterLoading(false);
+        }
+    }
+
+    /**
+     * Handler für Logout
+     */
+    async function handleLogout() {
+        try {
+            const result = await Auth.signOut();
+            
+            if (result.success) {
+                UI.showToast('Erfolgreich abgemeldet', 'success');
+                Sync.stopAutoSync();
+            } else {
+                UI.showToast('Abmeldung fehlgeschlagen', 'error');
+            }
+        } catch (error) {
+            console.error('Logout Error:', error);
+            UI.showToast('Abmeldung fehlgeschlagen', 'error');
+        }
+    }
+
+    /**
+     * Handler für manuelle Synchronisation
+     */
+    async function handleSyncNow() {
+        UI.updateSyncStatus('syncing', 'Synchronisiere...');
+        
+        try {
+            const result = await Sync.syncAll();
+            
+            if (result.success) {
+                UI.updateSyncStatus('synced', 'Alles synchronisiert', Sync.getLastSyncFormatted());
+                UI.showToast('Synchronisation abgeschlossen', 'success');
+                
+                // Daten neu laden
+                await loadData();
+            } else {
+                UI.updateSyncStatus('error', 'Sync fehlgeschlagen', Sync.getLastSyncFormatted());
+                UI.showToast('Synchronisation fehlgeschlagen', 'error');
+            }
+        } catch (error) {
+            console.error('Sync Error:', error);
+            UI.updateSyncStatus('error', 'Sync fehlgeschlagen');
+            UI.showToast('Synchronisation fehlgeschlagen', 'error');
+        }
+    }
+
+    /**
+     * Handler für Kennwort-Ändern-Formular (direktes Update in Supabase)
+     */
+    async function handleChangePasswordSubmit(event) {
+        event.preventDefault();
+
+        const els = UI.getElements();
+        const newPassword = els.inputNewPassword ? els.inputNewPassword.value : '';
+        const confirmPassword = els.inputNewPasswordConfirm ? els.inputNewPasswordConfirm.value : '';
+
+        if (els.changePasswordError) {
+            els.changePasswordError.textContent = '';
+        }
+
+        if (newPassword.length < 6) {
+            const msg = 'Das Passwort muss mindestens 6 Zeichen haben.';
+            if (els.changePasswordError) {
+                els.changePasswordError.textContent = msg;
+            }
+            UI.showToast(msg, 'error');
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            const msg = 'Die Passwörter stimmen nicht überein.';
+            if (els.changePasswordError) {
+                els.changePasswordError.textContent = msg;
+            }
+            UI.showToast(msg, 'error');
+            return;
+        }
+
+        if (els.btnSubmitChangePassword) {
+            els.btnSubmitChangePassword.disabled = true;
+        }
+
+        try {
+            const { data, error } = await SupabaseClient.updateUser({ password: newPassword });
+
+            if (error) {
+                const msg = error.message || 'Kennwort konnte nicht aktualisiert werden.';
+                if (els.changePasswordError) {
+                    els.changePasswordError.textContent = msg;
+                }
+                UI.showToast(msg, 'error');
+                return;
+            }
+
+            UI.showToast('Kennwort wurde aktualisiert', 'success');
+            UI.hideChangePasswordForm();
+        } catch (err) {
+            console.error('Change password error:', err);
+            UI.showToast('Kennwort konnte nicht aktualisiert werden.', 'error');
+        } finally {
+            if (els.btnSubmitChangePassword) {
+                els.btnSubmitChangePassword.disabled = false;
+            }
+        }
+    }
+
+    /**
+     * Handler für Auth-Status-Änderungen
+     */
+    function handleAuthStateChange(event, session, user) {
+        // INITIAL_SESSION und SIGNED_IN beide als "eingeloggt" behandeln
+        isAuthenticated = (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && user !== null;
+        
+        UI.updateProfileUI(isAuthenticated, user?.email || '');
+        
+        if (isAuthenticated) {
+            UI.updateSyncStatus('synced', 'Verbunden', Sync.getLastSyncFormatted());
+        }
+    }
+
+    /**
+     * Handler für Sync-Status-Änderungen
+     */
+    async function handleSyncStateChange(event) {
+        switch (event.type) {
+            case 'sync_start':
+                UI.updateSyncStatus('syncing', 'Synchronisiere...');
+                break;
+            case 'sync_complete':
+                UI.updateSyncStatus('synced', 'Alles synchronisiert', Sync.getLastSyncFormatted());
+                // Nach Sync Daten aus IndexedDB neu laden und UI aktualisieren (z. B. gepullte Unternehmen/Kategorien)
+                try {
+                    await loadData();
+                    updateEntriesFilterDropdowns();
+                    updateAnalysisFilterDropdowns();
+                    renderManagement();
+                    await loadAndRenderEntriesList();
+                } catch (e) {
+                    console.error('Fehler beim Aktualisieren nach Sync:', e);
+                }
+                break;
+            case 'sync_error':
+                UI.updateSyncStatus('error', 'Sync fehlgeschlagen', Sync.getLastSyncFormatted());
+                break;
+            case 'offline':
+                UI.updateSyncStatus('pending', 'Offline');
+                break;
+        }
+    }
+
+    // ========================================
     // Service Worker Registration
     // ========================================
 
@@ -1537,6 +2167,26 @@ const App = (function() {
 
     async function init() {
         try {
+            // Recovery-Redirect aus URL-Hash erkennen (vor Supabase, damit Session aus Hash übernommen werden kann)
+            try {
+                const hashParams = new URLSearchParams(location.hash.slice(1));
+                const searchParams = new URLSearchParams(location.search.slice(1));
+                // #region agent log
+                fetch('http://127.0.0.1:7586/ingest/8726b05c-8248-44ce-855c-3a7e775ae39d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d836f'},body:JSON.stringify({sessionId:'2d836f',location:'app.js:init',message:'Auth redirect URL params',data:{hash:location.hash?location.hash.substring(0,80):'',hasTypeRecovery:hashParams.get('type')==='recovery',error:hashParams.get('error')||searchParams.get('error'),errorCode:hashParams.get('error_code')||searchParams.get('error_code')},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+                // #endregion
+                if (hashParams.get('type') === 'recovery') {
+                    pendingRecoveryRedirect = true;
+                }
+                const err = hashParams.get('error') || searchParams.get('error');
+                const errCode = hashParams.get('error_code') || searchParams.get('error_code');
+                const errDesc = (hashParams.get('error_description') || searchParams.get('error_description') || '').toLowerCase();
+                if (err === 'access_denied' && (errCode === 'otp_expired' || errDesc.includes('expired') || errDesc.includes('invalid'))) {
+                    pendingResetLinkError = true;
+                }
+            } catch (e) {
+                // Hash-Parse ignoriert
+            }
+
             // UI initialisieren
             UI.init();
 
@@ -1558,12 +2208,45 @@ const App = (function() {
             // Service Worker registrieren
             registerServiceWorker();
 
-            // Prüfen ob Unternehmen vorhanden sind - falls nicht, Initial Setup Modal zeigen
-            if (companies.length === 0) {
-                UI.openInitialCompanyModal();
+            // Supabase initialisieren (optional - funktioniert auch ohne)
+            SupabaseClient.init();
+            
+            // Auth initialisieren und Listener registrieren
+            await Auth.init();
+            Auth.onAuthStateChange(handleAuthStateChange);
+
+            // Nach Recovery-Redirect: Profil anzeigen und Modal „Neues Passwort setzen“ öffnen
+            if (pendingRecoveryRedirect && Auth.isLoggedIn()) {
+                pendingRecoveryRedirect = false;
+                if (typeof history.replaceState === 'function') {
+                    history.replaceState(null, '', location.pathname + location.search || '');
+                }
+                UI.switchView('management');
+                UI.showProfileSubpage();
+                UI.openResetPasswordModal();
             }
 
-            console.log('TimeTrack PWA initialisiert');
+            // Redirect mit Fehler (z. B. Link abgelaufen): URL bereinigen, Profil anzeigen, Hinweis + Modal „Passwort vergessen“
+            if (pendingResetLinkError) {
+                pendingResetLinkError = false;
+                if (typeof history.replaceState === 'function') {
+                    history.replaceState(null, '', location.pathname + location.search || '');
+                }
+                UI.switchView('management');
+                UI.showProfileSubpage();
+                UI.showToast('Der Link ist abgelaufen oder ungültig. Bitte fordere einen neuen Link an.', 'info');
+                UI.openForgotPasswordModal();
+            }
+
+            // Sync-Listener VOR Sync.init() registrieren, damit sync_complete nach dem ersten
+            // Login-Sync die UI aktualisiert (sonst kann sync_complete vor der Registrierung feuern).
+            Sync.onSyncChange(handleSyncStateChange);
+            Sync.init();
+
+            // Initial-Company-Modal wird nicht mehr beim App-Start angezeigt.
+            // Stattdessen wird beim ersten Speichern automatisch ein Unternehmen erstellt.
+
+            console.log('TimeTrack PWA initialisiert (v' + Config.APP_VERSION + ')');
         } catch (error) {
             console.error('Initialisierungsfehler:', error);
             UI.showToast('App konnte nicht gestartet werden', 'error');

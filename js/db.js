@@ -7,12 +7,21 @@ const DB = (function() {
     'use strict';
 
     const DB_NAME = 'TimeTrackDB';
-    const DB_VERSION = 1;
+    const DB_VERSION = 2; // Version erhöht für Sync-Metadaten
     
     const STORES = {
         COMPANIES: 'companies',
         CATEGORIES: 'categories',
-        TIME_ENTRIES: 'timeEntries'
+        TIME_ENTRIES: 'timeEntries',
+        SYNC_QUEUE: 'syncQueue' // NEU: Ausstehende Sync-Operationen
+    };
+
+    // Sync-States für Einträge
+    const SYNC_STATE = {
+        SYNCED: 'synced',
+        PENDING: 'pending',
+        CONFLICT: 'conflict',
+        ERROR: 'error'
     };
 
     let db = null;
@@ -41,12 +50,14 @@ const DB = (function() {
 
             request.onupgradeneeded = (event) => {
                 const database = event.target.result;
+                const oldVersion = event.oldVersion;
 
                 // Companies Store
                 if (!database.objectStoreNames.contains(STORES.COMPANIES)) {
                     const companiesStore = database.createObjectStore(STORES.COMPANIES, { keyPath: 'id' });
                     companiesStore.createIndex('name', 'name', { unique: false });
                     companiesStore.createIndex('createdAt', 'createdAt', { unique: false });
+                    companiesStore.createIndex('syncState', 'syncState', { unique: false });
                 }
 
                 // Categories Store
@@ -54,6 +65,7 @@ const DB = (function() {
                     const categoriesStore = database.createObjectStore(STORES.CATEGORIES, { keyPath: 'id' });
                     categoriesStore.createIndex('name', 'name', { unique: false });
                     categoriesStore.createIndex('createdAt', 'createdAt', { unique: false });
+                    categoriesStore.createIndex('syncState', 'syncState', { unique: false });
                 }
 
                 // Time Entries Store
@@ -62,6 +74,39 @@ const DB = (function() {
                     entriesStore.createIndex('companyId', 'companyId', { unique: false });
                     entriesStore.createIndex('categoryId', 'categoryId', { unique: false });
                     entriesStore.createIndex('date', 'date', { unique: false });
+                    entriesStore.createIndex('syncState', 'syncState', { unique: false });
+                }
+
+                // Sync Queue Store (NEU in Version 2)
+                if (!database.objectStoreNames.contains(STORES.SYNC_QUEUE)) {
+                    const syncQueueStore = database.createObjectStore(STORES.SYNC_QUEUE, { keyPath: 'id', autoIncrement: true });
+                    syncQueueStore.createIndex('entityType', 'entityType', { unique: false });
+                    syncQueueStore.createIndex('entityId', 'entityId', { unique: false });
+                    syncQueueStore.createIndex('operation', 'operation', { unique: false });
+                    syncQueueStore.createIndex('createdAt', 'createdAt', { unique: false });
+                }
+
+                // Migration: Sync-Indizes zu bestehenden Stores hinzufügen (Version 1 -> 2)
+                if (oldVersion < 2) {
+                    const transaction = event.target.transaction;
+                    
+                    // Prüfen und Indizes hinzufügen falls nicht vorhanden
+                    const addSyncIndexIfNeeded = (storeName) => {
+                        const store = transaction.objectStore(storeName);
+                        if (!store.indexNames.contains('syncState')) {
+                            store.createIndex('syncState', 'syncState', { unique: false });
+                        }
+                    };
+
+                    if (database.objectStoreNames.contains(STORES.COMPANIES)) {
+                        addSyncIndexIfNeeded(STORES.COMPANIES);
+                    }
+                    if (database.objectStoreNames.contains(STORES.CATEGORIES)) {
+                        addSyncIndexIfNeeded(STORES.CATEGORIES);
+                    }
+                    if (database.objectStoreNames.contains(STORES.TIME_ENTRIES)) {
+                        addSyncIndexIfNeeded(STORES.TIME_ENTRIES);
+                    }
                 }
             };
         });
@@ -109,7 +154,7 @@ const DB = (function() {
     }
 
     /**
-     * Generische Add Funktion
+     * Generische Add Funktion (mit Sync-Metadaten)
      * @param {string} storeName 
      * @param {Object} item 
      * @returns {Promise<Object>}
@@ -119,21 +164,29 @@ const DB = (function() {
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
             
+            const now = Date.now();
             const itemWithId = {
                 ...item,
                 id: item.id || Utils.generateId(),
-                createdAt: item.createdAt || Date.now()
+                createdAt: item.createdAt || now,
+                updatedAt: item.updatedAt || now,
+                syncState: item.syncState || SYNC_STATE.PENDING
             };
 
             const request = store.add(itemWithId);
 
-            request.onsuccess = () => resolve(itemWithId);
+            request.onsuccess = () => {
+                window.dispatchEvent(new CustomEvent('dataChanged', { 
+                    detail: { store: storeName, id: itemWithId.id, operation: 'add' }
+                }));
+                resolve(itemWithId);
+            };
             request.onerror = () => reject(new Error(`Fehler beim Speichern in ${storeName}`));
         });
     }
 
     /**
-     * Generische Update Funktion
+     * Generische Update Funktion (mit Sync-Metadaten)
      * @param {string} storeName 
      * @param {Object} item 
      * @returns {Promise<Object>}
@@ -142,9 +195,21 @@ const DB = (function() {
         return new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
-            const request = store.put(item);
+            
+            const updatedItem = {
+                ...item,
+                updatedAt: Date.now(),
+                syncState: item.syncState || SYNC_STATE.PENDING
+            };
+            
+            const request = store.put(updatedItem);
 
-            request.onsuccess = () => resolve(item);
+            request.onsuccess = () => {
+                window.dispatchEvent(new CustomEvent('dataChanged', { 
+                    detail: { store: storeName, id: updatedItem.id, operation: 'update' }
+                }));
+                resolve(updatedItem);
+            };
             request.onerror = () => reject(new Error(`Fehler beim Aktualisieren in ${storeName}`));
         });
     }
@@ -161,7 +226,12 @@ const DB = (function() {
             const store = transaction.objectStore(storeName);
             const request = store.delete(id);
 
-            request.onsuccess = () => resolve();
+            request.onsuccess = () => {
+                window.dispatchEvent(new CustomEvent('dataChanged', { 
+                    detail: { store: storeName, id: id, operation: 'delete' }
+                }));
+                resolve();
+            };
             request.onerror = () => reject(new Error(`Fehler beim Löschen aus ${storeName}`));
         });
     }
@@ -454,6 +524,125 @@ const DB = (function() {
         return stats;
     }
 
+    // ========================================
+    // Sync Queue API
+    // ========================================
+
+    /**
+     * Fügt eine Operation zur Sync-Queue hinzu
+     * @param {string} entityType - 'company', 'category', 'timeEntry'
+     * @param {string} entityId - ID der Entität
+     * @param {string} operation - 'create', 'update', 'delete'
+     * @param {Object} data - Optionale Daten für die Operation
+     * @returns {Promise<Object>}
+     */
+    function addToSyncQueue(entityType, entityId, operation, data = null) {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORES.SYNC_QUEUE], 'readwrite');
+            const store = transaction.objectStore(STORES.SYNC_QUEUE);
+            
+            const queueItem = {
+                entityType,
+                entityId,
+                operation,
+                data,
+                createdAt: Date.now(),
+                retryCount: 0
+            };
+
+            const request = store.add(queueItem);
+
+            request.onsuccess = () => resolve({ ...queueItem, id: request.result });
+            request.onerror = () => reject(new Error('Fehler beim Hinzufügen zur Sync-Queue'));
+        });
+    }
+
+    /**
+     * Lädt alle ausstehenden Sync-Operationen
+     * @returns {Promise<Array>}
+     */
+    function getSyncQueue() {
+        return getAll(STORES.SYNC_QUEUE);
+    }
+
+    /**
+     * Entfernt eine Operation aus der Sync-Queue
+     * @param {number} id - Queue-Item ID
+     * @returns {Promise<void>}
+     */
+    function removeFromSyncQueue(id) {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORES.SYNC_QUEUE], 'readwrite');
+            const store = transaction.objectStore(STORES.SYNC_QUEUE);
+            const request = store.delete(id);
+
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(new Error('Fehler beim Entfernen aus Sync-Queue'));
+        });
+    }
+
+    /**
+     * Leert die gesamte Sync-Queue
+     * @returns {Promise<void>}
+     */
+    function clearSyncQueue() {
+        return clearStore(STORES.SYNC_QUEUE);
+    }
+
+    /**
+     * Aktualisiert den Sync-State einer Entität
+     * @param {string} storeName 
+     * @param {string} id 
+     * @param {string} syncState 
+     * @returns {Promise<void>}
+     */
+    async function updateSyncState(storeName, id, syncState) {
+        const item = await getById(storeName, id);
+        if (item) {
+            item.syncState = syncState;
+            item.updatedAt = Date.now();
+            await update(storeName, item);
+        }
+    }
+
+    /**
+     * Lädt alle Einträge mit einem bestimmten Sync-State
+     * @param {string} storeName 
+     * @param {string} syncState 
+     * @returns {Promise<Array>}
+     */
+    function getBySyncState(storeName, syncState) {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            
+            // Falls Index existiert, nutzen
+            if (store.indexNames.contains('syncState')) {
+                const index = store.index('syncState');
+                const request = index.getAll(syncState);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(new Error(`Fehler beim Laden aus ${storeName}`));
+            } else {
+                // Fallback: Alle laden und filtern
+                const request = store.getAll();
+                request.onsuccess = () => {
+                    const filtered = request.result.filter(item => item.syncState === syncState);
+                    resolve(filtered);
+                };
+                request.onerror = () => reject(new Error(`Fehler beim Laden aus ${storeName}`));
+            }
+        });
+    }
+
+    /**
+     * Zählt ausstehende Sync-Operationen
+     * @returns {Promise<number>}
+     */
+    async function getPendingSyncCount() {
+        const queue = await getSyncQueue();
+        return queue.length;
+    }
+
     // Öffentliche API
     return {
         initDB,
@@ -480,6 +669,15 @@ const DB = (function() {
         deleteAllData,
         // Import/Export
         getAllData,
-        importData
+        importData,
+        // Sync Queue (NEU)
+        addToSyncQueue,
+        getSyncQueue,
+        removeFromSyncQueue,
+        clearSyncQueue,
+        updateSyncState,
+        getBySyncState,
+        getPendingSyncCount,
+        SYNC_STATE
     };
 })();
