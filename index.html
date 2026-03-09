@@ -23,6 +23,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- Supabase SDK (nur laden wenn Online) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    
     <!-- Styles -->
     <link rel="stylesheet" href="css/styles.css">
     
@@ -351,17 +354,16 @@
                         </button>
                     </div>
 
-                    <!-- Stammdaten Section -->
+                    <!-- Cloud & Profil Section (NEU) -->
                     <div class="management__section">
                         <div class="management__header">
-                            <h2 class="management__title">Stammdaten</h2>
+                            <h2 class="management__title">Cloud & Profil</h2>
                         </div>
-                        <button id="btn-open-stammdaten" class="management__nav-btn" aria-label="Unternehmen und Kategorien bearbeiten">
+                        <button id="btn-open-profile" class="management__nav-btn" aria-label="Cloud-Synchronisation und Profil">
                             <svg class="management__nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                                <circle cx="12" cy="7" r="4"/>
+                                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
                             </svg>
-                            <span>Unternehmen & Kategorien</span>
+                            <span id="profile-nav-text">Anmelden / Registrieren</span>
                             <svg class="management__nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M9 18l6-6-6-6"/>
                             </svg>
@@ -374,6 +376,16 @@
                             <h2 class="management__title">Daten</h2>
                         </div>
                         <div class="management__button-group">
+                            <button id="btn-open-stammdaten" class="management__nav-btn" aria-label="Unternehmen und Kategorien bearbeiten">
+                                <svg class="management__nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="12" cy="7" r="4"/>
+                                </svg>
+                                <span>Unternehmen & Kategorien</span>
+                                <svg class="management__nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 18l6-6-6-6"/>
+                                </svg>
+                            </button>    
                             <button id="btn-import" class="management__action-btn" aria-label="Daten importieren">
                                 <svg class="management__action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -421,7 +433,7 @@
                             </text>
                         </svg>
                         <p class="management__copyright">© Maximilian Schneider</p>
-                        <p class="management__version">App Version 1.0.1</p>
+                        <p class="management__version">App Version 2.1.3</p>
                     </footer>
                 </div>
             </section>
@@ -436,7 +448,7 @@
                                 <path d="M15 18l-6-6 6-6"/>
                             </svg>
                         </button>
-                        <h2 class="subpage__title">Stammdaten</h2>
+                        <h2 class="subpage__title">Unternehmen & Kategorien</h2>
                     </div>
 
                     <!-- Companies Section -->
@@ -471,6 +483,139 @@
                             <!-- Dynamisch gefüllt mit farbigen Balken -->
                         </ul>
                         <p class="management__empty" id="categories-empty">Keine Kategorien vorhanden</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Profile/Cloud Subpage (NEU) -->
+            <section id="view-profile" class="view" data-view="profile">
+                <div class="subpage">
+                    <!-- Subpage Header -->
+                    <div class="subpage__header">
+                        <button id="btn-back-profile" class="subpage__back" aria-label="Zurück zur Verwaltung">
+                            <svg class="subpage__back-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M15 18l-6-6 6-6"/>
+                            </svg>
+                        </button>
+                        <h2 class="subpage__title">Cloud & Profil</h2>
+                    </div>
+
+                    <!-- Nicht angemeldet: Login-Bereich -->
+                    <div id="profile-logged-out" class="profile-section">
+                        <div class="profile-info">
+                            <svg class="profile-info__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                            </svg>
+                            <h3 class="profile-info__title">Cloud-Synchronisation</h3>
+                            <p class="profile-info__text">Melde dich an, um deine Daten sicher in der Cloud zu speichern und auf allen Geräten zu nutzen.</p>
+                        </div>
+
+                        <form id="form-login" class="form profile-form">
+                            <div class="form__group">
+                                <label class="form__label" for="login-email">E-Mail</label>
+                                <input type="email" id="login-email" class="input" placeholder="deine@email.de" required autocomplete="email">
+                            </div>
+                            <div class="form__group">
+                                <label class="form__label" for="login-password">Passwort</label>
+                                <input type="password" id="login-password" class="input" placeholder="Mindestens 6 Zeichen" required autocomplete="current-password">
+                                <a href="#" id="btn-forgot-password" class="profile-form__forgot-link">Passwort vergessen?</a>
+                            </div>
+                            <div class="form__error" id="login-error"></div>
+                            <div class="form__actions form__actions--stacked">
+                                <button type="submit" class="btn btn--primary btn--full-width" id="btn-login">
+                                    <span id="btn-login-text">Anmelden</span>
+                                    <span id="btn-login-loading" class="btn__loading" style="display: none;">
+                                        <svg class="btn__spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <circle cx="12" cy="12" r="10" stroke-dasharray="30 60"/>
+                                        </svg>
+                                    </span>
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="profile-divider">
+                            <span>oder</span>
+                        </div>
+
+                        <button type="button" class="btn btn--secondary btn--full-width" id="btn-show-register">
+                            Neues Konto erstellen
+                        </button>
+                    </div>
+
+                    <!-- Angemeldet: Profil-Bereich -->
+                    <div id="profile-logged-in" class="profile-section" style="display: none;">
+                        <div class="profile-user">
+                            <div class="profile-user__avatar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="12" cy="7" r="4"/>
+                                </svg>
+                            </div>
+                            <div class="profile-user__info">
+                                <span class="profile-user__label">Angemeldet als</span>
+                                <span class="profile-user__email" id="profile-email">user@example.com</span>
+                            </div>
+                            <svg class="profile-user__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                        </div>
+
+                        <div class="profile-sync">
+                            <div class="profile-sync__header">
+                                <h3 class="profile-sync__title">Synchronisation</h3>
+                                <span class="profile-sync__status" id="sync-status">
+                                    <span class="profile-sync__dot profile-sync__dot--synced"></span>
+                                    <span id="sync-status-text">Alles synchronisiert</span>
+                                </span>
+                            </div>
+                            <button type="button" class="btn btn--secondary btn--full-width" id="btn-sync-now">
+                                <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="23 4 23 10 17 10"/>
+                                    <polyline points="1 20 1 14 7 14"/>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                                </svg>
+                                <span>Jetzt synchronisieren</span>
+                            </button>
+                            <p class="profile-sync__last" id="sync-last-time">Letzte Sync: vor 5 Minuten</p>
+                        </div>
+
+                        <div class="profile-change-password">
+                            <button type="button" class="btn btn--secondary btn--full-width" id="btn-show-change-password" aria-label="Kennwort ändern">
+                                Kennwort ändern
+                            </button>
+                            <div id="profile-change-password-form" class="profile-change-password-form profile-change-password-form--hidden">
+                                <h3 class="profile-sync__title">Kennwort ändern</h3>
+                                <form id="form-change-password" class="form profile-form">
+                                    <div class="form__group">
+                                        <label class="form__label" for="input-new-password">Neues Passwort</label>
+                                        <input type="password" id="input-new-password" class="input" placeholder="Mindestens 6 Zeichen" minlength="6" autocomplete="new-password">
+                                    </div>
+                                    <div class="form__group">
+                                        <label class="form__label" for="input-new-password-confirm">Neues Passwort bestätigen</label>
+                                        <input type="password" id="input-new-password-confirm" class="input" placeholder="Passwort wiederholen" minlength="6" autocomplete="new-password">
+                                    </div>
+                                    <div class="form__error" id="change-password-error"></div>
+                                    <div class="form__actions form__actions--stacked">
+                                        <button type="submit" class="btn btn--primary btn--full-width" id="btn-submit-change-password">
+                                            Kennwort aktualisieren
+                                        </button>
+                                    </div>
+                                </form>
+                                <button type="button" class="btn btn--secondary btn--full-width" id="btn-cancel-change-password">Abbrechen</button>
+                            </div>
+                        </div>
+
+                        <div class="profile-actions">
+                            <button type="button" class="btn btn--destructive btn--full-width" id="btn-logout">
+                                <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                    <polyline points="16 17 21 12 16 7"/>
+                                    <line x1="21" y1="12" x2="9" y2="12"/>
+                                </svg>
+                                <span>Abmelden</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -531,6 +676,19 @@
                         <option value="">Bitte wählen...</option>
                         <!-- Dynamisch gefüllt -->
                     </select>
+                    <div id="inline-add-company" class="form__inline-add">
+                        <input type="text" id="inline-company-name" class="input" placeholder="Unternehmensname eingeben...">
+                        <button type="button" id="btn-inline-add-company" class="btn btn--primary btn--small">
+                            <svg class="btn__icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        </button>
+                        <button type="button" id="btn-inline-cancel-company" class="btn btn--secondary btn--small" aria-label="Abbrechen">
+                            <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="form__group">
                     <label class="form__label" for="entry-category">Kategorie</label>
@@ -741,6 +899,19 @@
             <h2 id="modal-delete-all-title" class="modal__title modal__title--danger">Alle Daten löschen?</h2>
             <p class="modal__text">Diese Aktion kann nicht rückgängig gemacht werden! Alle Unternehmen, Kategorien und Zeiteinträge werden unwiderruflich gelöscht.</p>
             <div class="form__group">
+                <label class="form__label">Was soll gelöscht werden?</label>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="delete-scope" value="local" checked>
+                        <span>Nur lokale Daten</span>
+                    </label>
+                    <label class="radio-option" id="delete-scope-both-label">
+                        <input type="radio" name="delete-scope" value="both" id="delete-scope-both" disabled>
+                        <span>Lokal und Cloud</span>
+                    </label>
+                </div>
+            </div>
+            <div class="form__group">
                 <label class="form__label" for="delete-confirmation-input">Geben Sie <strong>DELETE</strong> ein um zu bestätigen:</label>
                 <input type="text" id="delete-confirmation-input" class="input" placeholder="DELETE" autocomplete="off">
             </div>
@@ -769,6 +940,119 @@
         </div>
     </div>
 
+    <!-- Modal: Register -->
+    <div id="modal-register" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-register-title">
+        <div class="modal__backdrop" data-close-modal></div>
+        <div class="modal__content">
+            <div class="modal__header">
+                <h2 id="modal-register-title" class="modal__title">Konto erstellen</h2>
+                <button type="button" class="modal__close" data-close-modal aria-label="Schließen">
+                    <svg class="modal__close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="form-register" class="form">
+                <div class="form__group">
+                    <label class="form__label" for="register-email">E-Mail</label>
+                    <input type="email" id="register-email" class="input" placeholder="deine@email.de" required autocomplete="email">
+                </div>
+                <div class="form__group">
+                    <label class="form__label" for="register-password">Passwort (min. 6 Zeichen)</label>
+                    <input type="password" id="register-password" class="input" placeholder="Mindestens 6 Zeichen" required minlength="6" autocomplete="new-password">
+                </div>
+                <div class="form__group">
+                    <label class="form__label" for="register-password-confirm">Passwort bestätigen</label>
+                    <input type="password" id="register-password-confirm" class="input" placeholder="Passwort wiederholen" required minlength="6" autocomplete="new-password">
+                </div>
+                <div class="form__error" id="register-error"></div>
+                <div class="form__actions">
+                    <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
+                    <button type="submit" class="btn btn--primary" id="btn-register">
+                        <span id="btn-register-text">Registrieren</span>
+                        <span id="btn-register-loading" class="btn__loading" style="display: none;">
+                            <svg class="btn__spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10" stroke-dasharray="30 60"/>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Passwort zurücksetzen (Link anfordern) -->
+    <div id="modal-forgot-password" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-forgot-password-title">
+        <div class="modal__backdrop" data-close-modal></div>
+        <div class="modal__content">
+            <div class="modal__header">
+                <h2 id="modal-forgot-password-title" class="modal__title">Passwort zurücksetzen</h2>
+                <button type="button" class="modal__close" data-close-modal aria-label="Schließen">
+                    <svg class="modal__close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <p class="modal__description">Gib deine E-Mail-Adresse ein. Wir senden dir einen Link zum Zurücksetzen des Passworts.</p>
+            <form id="form-forgot-password" class="form">
+                <div class="form__group">
+                    <label class="form__label" for="forgot-email">E-Mail</label>
+                    <input type="email" id="forgot-email" class="input" placeholder="deine@email.de" required autocomplete="email">
+                </div>
+                <div class="form__error" id="forgot-error"></div>
+                <div class="form__success" id="forgot-success"></div>
+                <div class="form__actions">
+                    <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
+                    <button type="submit" class="btn btn--primary" id="btn-forgot-submit">
+                        <span id="btn-forgot-text">Link senden</span>
+                        <span id="btn-forgot-loading" class="btn__loading" style="display: none;">
+                            <svg class="btn__spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10" stroke-dasharray="30 60"/>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Neues Passwort setzen (nach Klick auf E-Mail-Link) -->
+    <div id="modal-reset-password" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-reset-password-title">
+        <div class="modal__backdrop" data-close-modal></div>
+        <div class="modal__content">
+            <div class="modal__header">
+                <h2 id="modal-reset-password-title" class="modal__title">Neues Passwort setzen</h2>
+                <button type="button" class="modal__close" data-close-modal aria-label="Schließen">
+                    <svg class="modal__close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="form-reset-password" class="form">
+                <div class="form__group">
+                    <label class="form__label" for="reset-password-new">Neues Passwort (min. 6 Zeichen)</label>
+                    <input type="password" id="reset-password-new" class="input" placeholder="Mindestens 6 Zeichen" required minlength="6" autocomplete="new-password">
+                </div>
+                <div class="form__group">
+                    <label class="form__label" for="reset-password-confirm">Passwort bestätigen</label>
+                    <input type="password" id="reset-password-confirm" class="input" placeholder="Passwort wiederholen" required minlength="6" autocomplete="new-password">
+                </div>
+                <div class="form__error" id="reset-password-error"></div>
+                <div class="form__actions">
+                    <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
+                    <button type="submit" class="btn btn--primary" id="btn-reset-password-submit">
+                        <span id="btn-reset-password-text">Passwort aktualisieren</span>
+                        <span id="btn-reset-password-loading" class="btn__loading" style="display: none;">
+                            <svg class="btn__spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10" stroke-dasharray="30 60"/>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Hidden File Input for Import -->
     <input type="file" id="file-import-input" accept=".json" style="display: none;">
 
@@ -780,6 +1064,10 @@
     <script src="js/db.js"></script>
     <script src="js/timer.js"></script>
     <script src="js/ui.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/sync.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

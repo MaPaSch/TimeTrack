@@ -146,6 +146,8 @@ const UI = (function() {
         // Delete All Modal
         elements.deleteConfirmationInput = document.getElementById('delete-confirmation-input');
         elements.btnConfirmDeleteAll = document.getElementById('btn-confirm-delete-all');
+        elements.deleteScopeBoth = document.getElementById('delete-scope-both');
+        elements.deleteScopeBothLabel = document.getElementById('delete-scope-both-label');
         
         // Discard Confirmation Buttons
         elements.btnConfirmSave = document.getElementById('btn-confirm-save');
@@ -160,6 +162,12 @@ const UI = (function() {
         elements.inlineCategoryName = document.getElementById('inline-category-name');
         elements.btnInlineAddCategory = document.getElementById('btn-inline-add-category');
         elements.btnInlineCancelCategory = document.getElementById('btn-inline-cancel-category');
+        
+        // Inline Add Company
+        elements.inlineAddCompany = document.getElementById('inline-add-company');
+        elements.inlineCompanyName = document.getElementById('inline-company-name');
+        elements.btnInlineAddCompany = document.getElementById('btn-inline-add-company');
+        elements.btnInlineCancelCompany = document.getElementById('btn-inline-cancel-company');
         
         // Forms
         elements.formSaveEntry = document.getElementById('form-save-entry');
@@ -203,6 +211,68 @@ const UI = (function() {
         
         // File Import Input
         elements.fileImportInput = document.getElementById('file-import-input');
+        
+        // Profile/Cloud Elements
+        elements.viewProfile = document.getElementById('view-profile');
+        elements.btnOpenProfile = document.getElementById('btn-open-profile');
+        elements.btnBackProfile = document.getElementById('btn-back-profile');
+        elements.profileNavText = document.getElementById('profile-nav-text');
+        elements.profileLoggedOut = document.getElementById('profile-logged-out');
+        elements.profileLoggedIn = document.getElementById('profile-logged-in');
+        elements.profileEmail = document.getElementById('profile-email');
+        elements.formLogin = document.getElementById('form-login');
+        elements.loginEmail = document.getElementById('login-email');
+        elements.loginPassword = document.getElementById('login-password');
+        elements.loginError = document.getElementById('login-error');
+        elements.btnLogin = document.getElementById('btn-login');
+        elements.btnLoginText = document.getElementById('btn-login-text');
+        elements.btnLoginLoading = document.getElementById('btn-login-loading');
+        elements.btnShowRegister = document.getElementById('btn-show-register');
+        elements.btnLogout = document.getElementById('btn-logout');
+        elements.btnSyncNow = document.getElementById('btn-sync-now');
+        elements.syncStatus = document.getElementById('sync-status');
+        elements.syncStatusText = document.getElementById('sync-status-text');
+        elements.syncLastTime = document.getElementById('sync-last-time');
+        elements.formChangePassword = document.getElementById('form-change-password');
+        elements.inputNewPassword = document.getElementById('input-new-password');
+        elements.inputNewPasswordConfirm = document.getElementById('input-new-password-confirm');
+        elements.changePasswordError = document.getElementById('change-password-error');
+        elements.btnSubmitChangePassword = document.getElementById('btn-submit-change-password');
+        elements.btnShowChangePassword = document.getElementById('btn-show-change-password');
+        elements.profileChangePasswordForm = document.getElementById('profile-change-password-form');
+        elements.btnCancelChangePassword = document.getElementById('btn-cancel-change-password');
+        
+        // Register Modal
+        elements.modalRegister = document.getElementById('modal-register');
+        elements.formRegister = document.getElementById('form-register');
+        elements.registerEmail = document.getElementById('register-email');
+        elements.registerPassword = document.getElementById('register-password');
+        elements.registerPasswordConfirm = document.getElementById('register-password-confirm');
+        elements.registerError = document.getElementById('register-error');
+        elements.btnRegister = document.getElementById('btn-register');
+        elements.btnRegisterText = document.getElementById('btn-register-text');
+        elements.btnRegisterLoading = document.getElementById('btn-register-loading');
+
+        // Forgot Password Modal
+        elements.btnForgotPassword = document.getElementById('btn-forgot-password');
+        elements.modalForgotPassword = document.getElementById('modal-forgot-password');
+        elements.formForgotPassword = document.getElementById('form-forgot-password');
+        elements.forgotEmail = document.getElementById('forgot-email');
+        elements.forgotError = document.getElementById('forgot-error');
+        elements.forgotSuccess = document.getElementById('forgot-success');
+        elements.btnForgotSubmit = document.getElementById('btn-forgot-submit');
+        elements.btnForgotText = document.getElementById('btn-forgot-text');
+        elements.btnForgotLoading = document.getElementById('btn-forgot-loading');
+
+        // Reset Password Modal (Recovery)
+        elements.modalResetPassword = document.getElementById('modal-reset-password');
+        elements.formResetPassword = document.getElementById('form-reset-password');
+        elements.resetPasswordNew = document.getElementById('reset-password-new');
+        elements.resetPasswordConfirm = document.getElementById('reset-password-confirm');
+        elements.resetPasswordError = document.getElementById('reset-password-error');
+        elements.btnResetPasswordSubmit = document.getElementById('btn-reset-password-submit');
+        elements.btnResetPasswordText = document.getElementById('btn-reset-password-text');
+        elements.btnResetPasswordLoading = document.getElementById('btn-reset-password-loading');
     }
 
     // ========================================
@@ -417,8 +487,10 @@ const UI = (function() {
      * @returns {boolean}
      */
     function validateSaveEntryForm() {
-        const companyId = elements.entryCompany.value;
-        return companyId !== '';
+        if (elements.inlineAddCompany.classList.contains('form__inline-add--visible')) {
+            return elements.inlineCompanyName.value.trim() !== '';
+        }
+        return elements.entryCompany.value !== '' && elements.entryCompany.value !== '__new__';
     }
 
     /**
@@ -466,13 +538,14 @@ const UI = (function() {
 
     /**
      * Füllt ein Select-Element mit Unternehmen
-     * @param {HTMLSelectElement} selectElement 
-     * @param {Array} companies 
+     * @param {HTMLSelectElement} selectElement
+     * @param {Array} companies
      * @param {boolean} includeAll - "Alle" Option hinzufügen
+     * @param {boolean} includeAddNew - "+ Neues Unternehmen..." Option hinzufügen
      */
-    function populateCompanySelect(selectElement, companies, includeAll = false) {
+    function populateCompanySelect(selectElement, companies, includeAll = false, includeAddNew = false) {
         const currentValue = selectElement.value;
-        
+
         // Vorhandene Optionen entfernen (außer erste)
         while (selectElement.options.length > 1) {
             selectElement.remove(1);
@@ -492,8 +565,16 @@ const UI = (function() {
             selectElement.appendChild(option);
         });
 
-        // Wert wiederherstellen wenn möglich
-        if (currentValue && Array.from(selectElement.options).some(o => o.value === currentValue)) {
+        // "+ Neues Unternehmen..." Option hinzufügen
+        if (includeAddNew) {
+            const newOption = document.createElement('option');
+            newOption.value = '__new__';
+            newOption.textContent = '+ Neues Unternehmen...';
+            selectElement.appendChild(newOption);
+        }
+
+        // Wert wiederherstellen wenn möglich (nicht __new__)
+        if (currentValue && currentValue !== '__new__' && Array.from(selectElement.options).some(o => o.value === currentValue)) {
             selectElement.value = currentValue;
         }
     }
@@ -555,15 +636,11 @@ const UI = (function() {
      * Versteckt das Inline-Kategorie-Eingabefeld
      */
     function hideInlineAddCategory() {
-        // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/02bef4e1-27ae-44d0-8fbe-5eca6579cc8d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ui.js:hideInlineAddCategory:BEFORE_RESET',message:'Vor dem Zurücksetzen des Dropdowns',data:{currentValue:elements.entryCategory.value},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
         elements.inlineAddCategory.classList.remove('form__inline-add--visible');
         elements.entryCategory.style.display = '';
-        elements.entryCategory.value = '';
-        // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/02bef4e1-27ae-44d0-8fbe-5eca6579cc8d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ui.js:hideInlineAddCategory:AFTER_RESET',message:'Nach dem Zurücksetzen des Dropdowns',data:{newValue:elements.entryCategory.value},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
+        if (elements.entryCategory.value === '__new__') {
+            elements.entryCategory.value = '';
+        }
         elements.inlineCategoryName.value = '';
     }
 
@@ -573,6 +650,52 @@ const UI = (function() {
      */
     function getInlineCategoryName() {
         return elements.inlineCategoryName.value.trim();
+    }
+
+    // ========================================
+    // Inline Add Company
+    // ========================================
+
+    /**
+     * Zeigt das Inline-Unternehmens-Eingabefeld
+     */
+    function showInlineAddCompany() {
+        elements.inlineAddCompany.classList.add('form__inline-add--visible');
+        elements.entryCompany.style.display = 'none';
+        elements.entryCompany.removeAttribute('required');
+        elements.inlineCompanyName.setAttribute('required', '');
+        elements.inlineCompanyName.value = '';
+        elements.inlineCompanyName.focus();
+    }
+
+    /**
+     * Versteckt das Inline-Unternehmens-Eingabefeld
+     */
+    function hideInlineAddCompany() {
+        elements.inlineAddCompany.classList.remove('form__inline-add--visible');
+        elements.entryCompany.style.display = '';
+        elements.entryCompany.setAttribute('required', '');
+        if (elements.entryCompany.value === '__new__') {
+            elements.entryCompany.value = '';
+        }
+        elements.inlineCompanyName.removeAttribute('required');
+        elements.inlineCompanyName.value = '';
+    }
+
+    /**
+     * Gibt den eingegebenen Unternehmensnamen zurück
+     * @returns {string}
+     */
+    function getInlineCompanyName() {
+        return elements.inlineCompanyName.value.trim();
+    }
+
+    /**
+     * Prüft ob die Inline-Unternehmenseingabe sichtbar ist
+     * @returns {boolean}
+     */
+    function isInlineAddCompanyVisible() {
+        return elements.inlineAddCompany.classList.contains('form__inline-add--visible');
     }
 
     // ========================================
@@ -798,7 +921,34 @@ const UI = (function() {
         if (elements.deleteConfirmationInput) {
             elements.deleteConfirmationInput.value = '';
         }
+        // Radio auf "local" zurücksetzen
+        const localRadio = document.querySelector('input[name="delete-scope"][value="local"]');
+        if (localRadio) {
+            localRadio.checked = true;
+        }
         updateDeleteAllButtonState();
+    }
+
+    /**
+     * Aktiviert/Deaktiviert die Cloud-Lösch-Option basierend auf Login-Status
+     * @param {boolean} isCloudMode - Ob der Benutzer im Cloud-Modus ist
+     */
+    function updateDeleteAllRadioState(isCloudMode) {
+        if (elements.deleteScopeBoth) {
+            elements.deleteScopeBoth.disabled = !isCloudMode;
+        }
+        if (elements.deleteScopeBothLabel) {
+            elements.deleteScopeBothLabel.style.opacity = isCloudMode ? '1' : '0.5';
+        }
+    }
+
+    /**
+     * Gibt den gewählten Lösch-Scope zurück
+     * @returns {string} 'local' oder 'both'
+     */
+    function getDeleteScope() {
+        const selectedRadio = document.querySelector('input[name="delete-scope"]:checked');
+        return selectedRadio ? selectedRadio.value : 'local';
     }
 
     // ========================================
@@ -813,16 +963,24 @@ const UI = (function() {
      */
     function prepareSaveEntryModal(timerData, companies, categories) {
         elements.entryDuration.value = Utils.formatTime(timerData.duration).formatted;
-        populateCompanySelect(elements.entryCompany, companies);
-        populateCategorySelect(elements.entryCategory, categories, true); // Mit "Neue Kategorie..." Option
+
+        // Company-Bereich: immer Dropdown mit Option "+ Neues Unternehmen..."
+        hideInlineAddCompany();
+        populateCompanySelect(elements.entryCompany, companies, false, true);
+
+        const lastCompanyId = localStorage.getItem('timetrack-last-company');
+        if (lastCompanyId && companies.some(c => c.id === lastCompanyId)) {
+            elements.entryCompany.value = lastCompanyId;
+        } else {
+            elements.entryCompany.value = '';
+        }
+
+        populateCategorySelect(elements.entryCategory, categories, true);
         elements.entryNote.value = '';
-        elements.entryCompany.value = '';
         elements.entryCategory.value = '';
-        
-        // Inline-Kategorie-Eingabe zurücksetzen
+
         hideInlineAddCategory();
-        
-        // Speichern-Button initial deaktivieren
+
         updateSaveButtonState();
     }
 
@@ -1950,6 +2108,311 @@ const UI = (function() {
         }
     }
 
+    // ========================================
+    // Profile/Cloud UI
+    // ========================================
+
+    /**
+     * Zeigt die Profil-Unterseite an
+     */
+    function showProfileSubpage() {
+        elements.viewManagement.classList.remove('view--active');
+        if (elements.viewProfile) {
+            elements.viewProfile.classList.add('view--active');
+        }
+    }
+
+    /**
+     * Versteckt die Profil-Unterseite und kehrt zur Management-View zurück
+     */
+    function hideProfileSubpage() {
+        if (elements.viewProfile) {
+            elements.viewProfile.classList.remove('view--active');
+        }
+        elements.viewManagement.classList.add('view--active');
+    }
+
+    /**
+     * Zeigt das Kennwort-Ändern-Formular an (Button ausblenden, Formular einblenden)
+     */
+    function showChangePasswordForm() {
+        if (elements.btnShowChangePassword) {
+            elements.btnShowChangePassword.classList.add('profile-change-password-btn--hidden');
+        }
+        if (elements.profileChangePasswordForm) {
+            elements.profileChangePasswordForm.classList.remove('profile-change-password-form--hidden');
+        }
+    }
+
+    /**
+     * Versteckt das Kennwort-Ändern-Formular und zeigt den Button wieder
+     */
+    function hideChangePasswordForm() {
+        if (elements.profileChangePasswordForm) {
+            elements.profileChangePasswordForm.classList.add('profile-change-password-form--hidden');
+        }
+        if (elements.btnShowChangePassword) {
+            elements.btnShowChangePassword.classList.remove('profile-change-password-btn--hidden');
+        }
+        if (elements.inputNewPassword) elements.inputNewPassword.value = '';
+        if (elements.inputNewPasswordConfirm) elements.inputNewPasswordConfirm.value = '';
+        if (elements.changePasswordError) elements.changePasswordError.textContent = '';
+    }
+
+    /**
+     * Aktualisiert die Profile-UI basierend auf Auth-Status
+     * @param {boolean} isLoggedIn 
+     * @param {string} email - Email des Benutzers (wenn angemeldet)
+     */
+    function updateProfileUI(isLoggedIn, email = '') {
+        if (!elements.profileLoggedOut || !elements.profileLoggedIn) return;
+
+        if (isLoggedIn) {
+            elements.profileLoggedOut.style.display = 'none';
+            elements.profileLoggedIn.style.display = 'block';
+            if (elements.profileEmail) {
+                elements.profileEmail.textContent = email;
+            }
+            if (elements.profileNavText) {
+                elements.profileNavText.textContent = 'Profil & Sync';
+            }
+        } else {
+            elements.profileLoggedOut.style.display = 'block';
+            elements.profileLoggedIn.style.display = 'none';
+            if (elements.profileNavText) {
+                elements.profileNavText.textContent = 'Anmelden / Registrieren';
+            }
+        }
+    }
+
+    /**
+     * Aktualisiert die Sync-Status-Anzeige
+     * @param {string} state - 'synced', 'pending', 'syncing', 'error'
+     * @param {string} text - Statustext
+     * @param {string} lastSync - Letzte Sync-Zeit als Text
+     */
+    function updateSyncStatus(state, text, lastSync = '') {
+        if (!elements.syncStatus) return;
+
+        const dot = elements.syncStatus.querySelector('.profile-sync__dot');
+        if (dot) {
+            dot.className = 'profile-sync__dot';
+            switch (state) {
+                case 'synced':
+                    dot.classList.add('profile-sync__dot--synced');
+                    break;
+                case 'pending':
+                    dot.classList.add('profile-sync__dot--pending');
+                    break;
+                case 'syncing':
+                    dot.classList.add('profile-sync__dot--syncing');
+                    break;
+                case 'error':
+                    dot.classList.add('profile-sync__dot--error');
+                    break;
+            }
+        }
+
+        if (elements.syncStatusText) {
+            elements.syncStatusText.textContent = text;
+        }
+
+        if (elements.syncLastTime && lastSync) {
+            elements.syncLastTime.textContent = `Letzte Sync: ${lastSync}`;
+        }
+    }
+
+    /**
+     * Zeigt einen Login-Fehler an
+     * @param {string} message 
+     */
+    function showLoginError(message) {
+        if (elements.loginError) {
+            elements.loginError.textContent = message;
+        }
+    }
+
+    /**
+     * Leert den Login-Fehler
+     */
+    function clearLoginError() {
+        if (elements.loginError) {
+            elements.loginError.textContent = '';
+        }
+    }
+
+    /**
+     * Setzt den Login-Button in den Lade-Zustand
+     * @param {boolean} loading 
+     */
+    function setLoginLoading(loading) {
+        if (!elements.btnLogin) return;
+
+        elements.btnLogin.disabled = loading;
+        
+        if (elements.btnLoginText) {
+            elements.btnLoginText.style.display = loading ? 'none' : 'inline';
+        }
+        if (elements.btnLoginLoading) {
+            elements.btnLoginLoading.style.display = loading ? 'inline-flex' : 'none';
+        }
+    }
+
+    /**
+     * Zeigt einen Registrierungs-Fehler an
+     * @param {string} message 
+     */
+    function showRegisterError(message) {
+        if (elements.registerError) {
+            elements.registerError.textContent = message;
+        }
+    }
+
+    /**
+     * Leert den Registrierungs-Fehler
+     */
+    function clearRegisterError() {
+        if (elements.registerError) {
+            elements.registerError.textContent = '';
+        }
+    }
+
+    /**
+     * Setzt den Registrieren-Button in den Lade-Zustand
+     * @param {boolean} loading 
+     */
+    function setRegisterLoading(loading) {
+        if (!elements.btnRegister) return;
+
+        elements.btnRegister.disabled = loading;
+        
+        if (elements.btnRegisterText) {
+            elements.btnRegisterText.style.display = loading ? 'none' : 'inline';
+        }
+        if (elements.btnRegisterLoading) {
+            elements.btnRegisterLoading.style.display = loading ? 'inline-flex' : 'none';
+        }
+    }
+
+    /**
+     * Öffnet das Registrierungs-Modal
+     */
+    function openRegisterModal() {
+        clearRegisterError();
+        if (elements.formRegister) {
+            elements.formRegister.reset();
+        }
+        openModal(elements.modalRegister);
+    }
+
+    /**
+     * Schließt das Registrierungs-Modal
+     */
+    function closeRegisterModal() {
+        closeModal(elements.modalRegister);
+    }
+
+    /**
+     * Öffnet das Modal „Passwort zurücksetzen“ (Link anfordern)
+     */
+    function openForgotPasswordModal() {
+        showForgotPasswordError('');
+        showForgotPasswordSuccess('');
+        if (elements.formForgotPassword) {
+            elements.formForgotPassword.reset();
+        }
+        if (elements.forgotEmail) {
+            elements.forgotEmail.value = '';
+        }
+        openModal(elements.modalForgotPassword);
+    }
+
+    /**
+     * Schließt das Modal „Passwort zurücksetzen“
+     */
+    function closeForgotPasswordModal() {
+        closeModal(elements.modalForgotPassword);
+    }
+
+    /**
+     * Zeigt Fehlermeldung im Forgot-Password-Modal
+     * @param {string} message
+     */
+    function showForgotPasswordError(message) {
+        if (elements.forgotError) {
+            elements.forgotError.textContent = message || '';
+            elements.forgotError.style.display = message ? 'block' : 'none';
+        }
+    }
+
+    /**
+     * Zeigt Erfolgsmeldung im Forgot-Password-Modal
+     * @param {string} message
+     */
+    function showForgotPasswordSuccess(message) {
+        if (elements.forgotSuccess) {
+            elements.forgotSuccess.textContent = message || '';
+            elements.forgotSuccess.style.display = message ? 'block' : 'none';
+        }
+    }
+
+    /**
+     * Setzt Loading-Zustand im Forgot-Password-Submit-Button
+     * @param {boolean} loading
+     */
+    function setForgotPasswordLoading(loading) {
+        if (elements.btnForgotText && elements.btnForgotLoading) {
+            elements.btnForgotText.style.display = loading ? 'none' : 'inline';
+            elements.btnForgotLoading.style.display = loading ? 'inline-flex' : 'none';
+        }
+        if (elements.btnForgotSubmit) {
+            elements.btnForgotSubmit.disabled = loading;
+        }
+    }
+
+    /**
+     * Öffnet das Modal „Neues Passwort setzen“ (Recovery)
+     */
+    function openResetPasswordModal() {
+        showResetPasswordError('');
+        if (elements.formResetPassword) {
+            elements.formResetPassword.reset();
+        }
+        openModal(elements.modalResetPassword);
+    }
+
+    /**
+     * Schließt das Modal „Neues Passwort setzen“
+     */
+    function closeResetPasswordModal() {
+        closeModal(elements.modalResetPassword);
+    }
+
+    /**
+     * Zeigt Fehlermeldung im Reset-Password-Modal
+     * @param {string} message
+     */
+    function showResetPasswordError(message) {
+        if (elements.resetPasswordError) {
+            elements.resetPasswordError.textContent = message || '';
+            elements.resetPasswordError.style.display = message ? 'block' : 'none';
+        }
+    }
+
+    /**
+     * Setzt Loading-Zustand im Reset-Password-Submit-Button
+     * @param {boolean} loading
+     */
+    function setResetPasswordLoading(loading) {
+        if (elements.btnResetPasswordText && elements.btnResetPasswordLoading) {
+            elements.btnResetPasswordText.style.display = loading ? 'none' : 'inline';
+            elements.btnResetPasswordLoading.style.display = loading ? 'inline-flex' : 'none';
+        }
+        if (elements.btnResetPasswordSubmit) {
+            elements.btnResetPasswordSubmit.disabled = loading;
+        }
+    }
+
     /**
      * Gibt Element-Referenzen zurück
      * @returns {Object}
@@ -1995,6 +2458,11 @@ const UI = (function() {
         showInlineAddCategory,
         hideInlineAddCategory,
         getInlineCategoryName,
+        // Inline Company
+        showInlineAddCompany,
+        hideInlineAddCompany,
+        getInlineCompanyName,
+        isInlineAddCompanyVisible,
         // Toast
         showToast,
         // Dropdowns
@@ -2060,10 +2528,36 @@ const UI = (function() {
         // Delete All
         updateDeleteAllButtonState,
         resetDeleteAllModal,
+        updateDeleteAllRadioState,
+        getDeleteScope,
         // Theme
         initTheme,
         setTheme,
         toggleTheme,
-        getTheme
+        getTheme,
+        // Profile/Cloud
+        showProfileSubpage,
+        hideProfileSubpage,
+        showChangePasswordForm,
+        hideChangePasswordForm,
+        updateProfileUI,
+        updateSyncStatus,
+        showLoginError,
+        clearLoginError,
+        setLoginLoading,
+        showRegisterError,
+        clearRegisterError,
+        setRegisterLoading,
+        openRegisterModal,
+        closeRegisterModal,
+        openForgotPasswordModal,
+        closeForgotPasswordModal,
+        showForgotPasswordError,
+        showForgotPasswordSuccess,
+        setForgotPasswordLoading,
+        openResetPasswordModal,
+        closeResetPasswordModal,
+        showResetPasswordError,
+        setResetPasswordLoading
     };
 })();
