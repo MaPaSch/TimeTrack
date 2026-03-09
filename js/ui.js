@@ -205,6 +205,13 @@ const UI = (function() {
         elements.deleteMessage = document.getElementById('delete-message');
         elements.deleteItemId = document.getElementById('delete-item-id');
         elements.deleteItemType = document.getElementById('delete-item-type');
+        // Rename Modal
+        elements.modalRenameItem = document.getElementById('modal-rename-item');
+        elements.modalRenameTitle = document.getElementById('modal-rename-title');
+        elements.renameItemName = document.getElementById('rename-item-name');
+        elements.renameItemId = document.getElementById('rename-item-id');
+        elements.renameItemType = document.getElementById('rename-item-type');
+        elements.btnConfirmRename = document.getElementById('btn-confirm-rename');
         
         // Toast Container
         elements.toastContainer = document.getElementById('toast-container');
@@ -851,12 +858,20 @@ const UI = (function() {
             li.className = 'list-item';
             li.innerHTML = `
                 <span class="list-item__name">${escapeHtml(company.name)}</span>
-                <button class="list-item__delete" data-action="delete-company" data-id="${company.id}" aria-label="${company.name} löschen">
-                    <svg class="list-item__delete-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 6h18"/>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                </button>
+                <div class="list-item__actions">
+                    <button class="list-item__rename" data-action="rename-company" data-id="${company.id}" aria-label="${escapeHtml(company.name)} umbenennen">
+                        <svg class="list-item__rename-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                    </button>
+                    <button class="list-item__delete" data-action="delete-company" data-id="${company.id}" aria-label="${escapeHtml(company.name)} löschen">
+                        <svg class="list-item__delete-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 6h18"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                    </button>
+                </div>
             `;
             elements.companiesList.appendChild(li);
         });
@@ -884,12 +899,20 @@ const UI = (function() {
             li.style.setProperty('--category-color', color);
             li.innerHTML = `
                 <span class="list-item__name">${escapeHtml(category.name)}</span>
-                <button class="list-item__delete" data-action="delete-category" data-id="${category.id}" aria-label="${category.name} löschen">
-                    <svg class="list-item__delete-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 6h18"/>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                </button>
+                <div class="list-item__actions">
+                    <button class="list-item__rename" data-action="rename-category" data-id="${category.id}" aria-label="${escapeHtml(category.name)} umbenennen">
+                        <svg class="list-item__rename-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                    </button>
+                    <button class="list-item__delete" data-action="delete-category" data-id="${category.id}" aria-label="${escapeHtml(category.name)} löschen">
+                        <svg class="list-item__delete-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 6h18"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                    </button>
+                </div>
             `;
             elements.categoriesList.appendChild(li);
         });
@@ -1045,6 +1068,22 @@ const UI = (function() {
                 break;
         }
         elements.deleteMessage.textContent = message;
+    }
+
+    /**
+     * Bereitet das Umbenennen-Modal vor
+     * @param {string} type - 'company' oder 'category'
+     * @param {string} id
+     * @param {string} currentName
+     */
+    function prepareRenameModal(type, id, currentName) {
+        elements.renameItemId.value = id;
+        elements.renameItemType.value = type;
+        elements.renameItemName.value = currentName || '';
+        elements.modalRenameTitle.textContent = type === 'company' ? 'Unternehmen umbenennen' : 'Kategorie umbenennen';
+        if (elements.renameItemName) {
+            setTimeout(() => elements.renameItemName.focus(), 100);
+        }
     }
 
     // ========================================
@@ -2522,6 +2561,7 @@ const UI = (function() {
         prepareSaveEntryModal,
         prepareEditEntryModal,
         prepareDeleteModal,
+        prepareRenameModal,
         // Management Subpage
         showStammdatenSubpage,
         hideStammdatenSubpage,

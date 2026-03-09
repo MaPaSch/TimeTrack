@@ -850,6 +850,24 @@
         </div>
     </div>
 
+    <!-- Modal: Umbenennen (Unternehmen/Kategorie) -->
+    <div id="modal-rename-item" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-rename-title">
+        <div class="modal__backdrop" data-close-modal></div>
+        <div class="modal__content">
+            <h2 id="modal-rename-title" class="modal__title">Umbenennen</h2>
+            <div class="form__group">
+                <label class="form__label" for="rename-item-name">Name</label>
+                <input type="text" id="rename-item-name" class="input" placeholder="Neuer Name" autocomplete="off">
+            </div>
+            <input type="hidden" id="rename-item-id">
+            <input type="hidden" id="rename-item-type">
+            <div class="form__actions">
+                <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
+                <button type="button" id="btn-confirm-rename" class="btn btn--primary">Umbenennen</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Discard Confirmation (for Save Entry) -->
     <div id="modal-discard-confirm" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="modal-discard-title">
         <div class="modal__backdrop"></div>

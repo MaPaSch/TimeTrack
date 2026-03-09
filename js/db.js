@@ -275,6 +275,15 @@ const DB = (function() {
         return remove(STORES.COMPANIES, id);
     }
 
+    /**
+     * Aktualisiert ein Unternehmen
+     * @param {Object} company - Vollständiges Objekt mit id
+     * @returns {Promise<Object>}
+     */
+    function updateCompany(company) {
+        return update(STORES.COMPANIES, company);
+    }
+
     // ========================================
     // Categories API
     // ========================================
@@ -313,6 +322,15 @@ const DB = (function() {
      */
     function deleteCategory(id) {
         return remove(STORES.CATEGORIES, id);
+    }
+
+    /**
+     * Aktualisiert eine Kategorie
+     * @param {Object} category - Vollständiges Objekt mit id
+     * @returns {Promise<Object>}
+     */
+    function updateCategory(category) {
+        return update(STORES.CATEGORIES, category);
     }
 
     // ========================================
@@ -651,12 +669,14 @@ const DB = (function() {
         getCompanies,
         getCompany,
         addCompany,
+        updateCompany,
         deleteCompany,
         countEntriesForCompany,
         // Categories
         getCategories,
         getCategory,
         addCategory,
+        updateCategory,
         deleteCategory,
         countEntriesForCategory,
         // Time Entries

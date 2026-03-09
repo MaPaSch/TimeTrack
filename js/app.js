@@ -1361,6 +1361,55 @@ const App = (function() {
                 UI.prepareDeleteModal('category', id, category.name);
                 UI.openModal(UI.getElements().modalConfirmDelete);
             }
+        } else if (action === 'rename-company') {
+            const company = companies.find(c => c.id === id);
+            if (company) {
+                UI.prepareRenameModal('company', id, company.name);
+                UI.openModal(UI.getElements().modalRenameItem);
+            }
+        } else if (action === 'rename-category') {
+            const category = categories.find(c => c.id === id);
+            if (category) {
+                UI.prepareRenameModal('category', id, category.name);
+                UI.openModal(UI.getElements().modalRenameItem);
+            }
+        }
+    }
+
+    async function handleRenameSubmit() {
+        const els = UI.getElements();
+        const id = els.renameItemId.value;
+        const type = els.renameItemType.value;
+        const newName = (els.renameItemName.value || '').trim();
+
+        if (!newName) {
+            UI.showToast('Bitte einen Namen eingeben', 'error');
+            return;
+        }
+
+        try {
+            if (type === 'company') {
+                const company = await DB.getCompany(id);
+                if (company) {
+                    await DB.updateCompany({ ...company, name: newName });
+                }
+            } else if (type === 'category') {
+                const category = await DB.getCategory(id);
+                if (category) {
+                    await DB.updateCategory({ ...category, name: newName });
+                }
+            }
+            await loadData();
+            renderManagement();
+            if (Auth.isCloudMode()) {
+                const stats = { pushed: { companies: 0, categories: 0, timeEntries: 0 }, errors: [] };
+                Sync.pushPendingChanges(stats).catch(err => console.error('Sync nach Umbenennen:', err));
+            }
+            UI.closeModal(els.modalRenameItem);
+            UI.showToast('Erfolgreich umbenannt', 'success');
+        } catch (error) {
+            console.error('Fehler beim Umbenennen:', error);
+            UI.showToast('Fehler beim Umbenennen', 'error');
         }
     }
 
@@ -1557,6 +1606,11 @@ const App = (function() {
 
         // Delete Confirm
         els.btnConfirmDelete.addEventListener('click', handleConfirmDelete);
+
+        // Rename (Unternehmen/Kategorie)
+        if (els.btnConfirmRename) {
+            els.btnConfirmRename.addEventListener('click', handleRenameSubmit);
+        }
 
         // Discard Confirmation Buttons
         els.btnConfirmSave.addEventListener('click', handleConfirmSave);

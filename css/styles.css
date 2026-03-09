@@ -1479,6 +1479,40 @@ body {
     color: var(--color-text-primary);
 }
 
+.list-item__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.list-item__rename {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--touch-target);
+    height: var(--touch-target);
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+.list-item__rename:active {
+    transform: scale(0.97);
+}
+
+.list-item__rename:hover {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+}
+
+.list-item__rename-icon {
+    width: 20px;
+    height: 20px;
+}
+
 .list-item__delete {
     display: flex;
     align-items: center;
