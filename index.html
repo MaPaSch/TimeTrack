@@ -122,11 +122,24 @@
                             </select>
                         </div>
                         <div class="filter-bar__group">
-                            <label class="filter-bar__label" for="entries-filter-category">Kategorie</label>
-                            <select id="entries-filter-category" class="select">
-                                <option value="all">Alle</option>
-                                <!-- Dynamisch gefüllt -->
-                            </select>
+                            <label class="filter-bar__label">Kategorie</label>
+                            <div class="filter-bar__multiselect" id="entries-filter-category">
+                                <button class="filter-bar__multiselect-trigger" type="button" aria-expanded="false">
+                                    <span class="filter-bar__multiselect-text">Alle</span>
+                                    <svg class="filter-bar__multiselect-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M6 9l6 6 6-6"/>
+                                    </svg>
+                                </button>
+                                <div class="filter-bar__multiselect-dropdown">
+                                    <div class="filter-bar__multiselect-option filter-bar__multiselect-all">
+                                        <input type="checkbox" id="entries-cat-all" value="all" checked>
+                                        <label for="entries-cat-all">Alle</label>
+                                    </div>
+                                    <div class="filter-bar__multiselect-options">
+                                        <!-- Dynamisch gefüllt -->
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -240,11 +253,24 @@
                             </select>
                         </div>
                         <div class="filter-bar__group">
-                            <label class="filter-bar__label" for="filter-category">Kategorie</label>
-                            <select id="filter-category" class="select">
-                                <option value="all">Alle</option>
-                                <!-- Dynamisch gefüllt -->
-                            </select>
+                            <label class="filter-bar__label">Kategorie</label>
+                            <div class="filter-bar__multiselect" id="filter-category">
+                                <button class="filter-bar__multiselect-trigger" type="button" aria-expanded="false">
+                                    <span class="filter-bar__multiselect-text">Alle</span>
+                                    <svg class="filter-bar__multiselect-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M6 9l6 6 6-6"/>
+                                    </svg>
+                                </button>
+                                <div class="filter-bar__multiselect-dropdown">
+                                    <div class="filter-bar__multiselect-option filter-bar__multiselect-all">
+                                        <input type="checkbox" id="analysis-cat-all" value="all" checked>
+                                        <label for="analysis-cat-all">Alle</label>
+                                    </div>
+                                    <div class="filter-bar__multiselect-options">
+                                        <!-- Dynamisch gefüllt -->
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -433,7 +459,7 @@
                             </text>
                         </svg>
                         <p class="management__copyright">© Maximilian Schneider</p>
-                        <p class="management__version">App Version 2.1.3</p>
+                        <p class="management__version">App Version 2.1.4</p>
                     </footer>
                 </div>
             </section>

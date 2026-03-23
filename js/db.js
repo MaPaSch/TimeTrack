@@ -340,6 +340,7 @@ const DB = (function() {
     /**
      * Lädt alle Zeiteinträge
      * @param {Object} filters - { companyId?, categoryId?, dateRange? }
+     *   - categoryId kann ein String, ein Array von Strings, oder 'all' sein
      * @returns {Promise<Array>}
      */
     async function getTimeEntries(filters = {}) {
@@ -352,7 +353,13 @@ const DB = (function() {
 
         // Filter nach Kategorie
         if (filters.categoryId && filters.categoryId !== 'all') {
-            entries = entries.filter(e => e.categoryId === filters.categoryId);
+            if (Array.isArray(filters.categoryId)) {
+                // Mehrere Kategorien ausgewählt
+                entries = entries.filter(e => filters.categoryId.includes(e.categoryId));
+            } else {
+                // Einzelne Kategorie ausgewählt
+                entries = entries.filter(e => e.categoryId === filters.categoryId);
+            }
         }
 
         // Filter nach Zeitraum

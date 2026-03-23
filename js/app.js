@@ -46,7 +46,10 @@ const App = (function() {
     function updateAnalysisFilterDropdowns() {
         const els = UI.getElements();
         UI.populateCompanySelect(els.filterCompany, companies, true);
-        UI.populateCategorySelect(els.filterCategory, categories, false, true);
+        
+        // Aktuelle ausgewählte Kategorien merken
+        const currentSelectedIds = UI.getSelectedCategoryIds(els.filterCategory);
+        UI.populateCategoryMultiSelect(els.filterCategory, categories, currentSelectedIds);
     }
 
     /**
@@ -55,7 +58,10 @@ const App = (function() {
     function updateEntriesFilterDropdowns() {
         const els = UI.getElements();
         UI.populateCompanySelect(els.entriesFilterCompany, companies, true);
-        UI.populateCategorySelect(els.entriesFilterCategory, categories, false, true);
+        
+        // Aktuelle ausgewählte Kategorien merken
+        const currentSelectedIds = UI.getSelectedCategoryIds(els.entriesFilterCategory);
+        UI.populateCategoryMultiSelect(els.entriesFilterCategory, categories, currentSelectedIds);
     }
 
     /**
@@ -66,7 +72,10 @@ const App = (function() {
         
         const period = els.entriesFilterPeriod.value;
         const companyId = els.entriesFilterCompany.value;
-        const categoryId = els.entriesFilterCategory.value;
+        const selectedCategoryIds = UI.getSelectedCategoryIds(els.entriesFilterCategory);
+        
+        // categoryId kann jetzt ein Array sein oder 'all'
+        const categoryId = selectedCategoryIds.includes('all') ? 'all' : selectedCategoryIds;
         
         // Datumsbereich basierend auf Navigator-Datum berechnen
         const dateRange = Utils.getDateRangeForNavigator(period, currentEntriesNavigatorDate);
@@ -97,7 +106,10 @@ const App = (function() {
         
         const period = els.filterPeriod.value;
         const companyId = els.filterCompany.value;
-        const categoryId = els.filterCategory.value;
+        const selectedCategoryIds = UI.getSelectedCategoryIds(els.filterCategory);
+        
+        // categoryId kann jetzt ein Array sein oder 'all'
+        const categoryId = selectedCategoryIds.includes('all') ? 'all' : selectedCategoryIds;
         
         // Datumsbereich basierend auf Navigator-Datum berechnen
         const dateRange = Utils.getDateRangeForNavigator(period, currentNavigatorDate);
@@ -1433,6 +1445,79 @@ const App = (function() {
     }
 
     // ========================================
+    // Multi-Select Category Filter Events
+    // ========================================
+
+    /**
+     * Bindet Event-Handler für ein Multi-Select Kategorie-Filter
+     * @param {HTMLElement} multiSelectEl - Das Multi-Select Container Element
+     * @param {Function} onChangeCallback - Callback bei Änderung
+     * @param {Array} categoriesRef - Referenz auf Kategorien-Array für UI-Updates
+     */
+    function bindCategoryMultiSelectEvents(multiSelectEl, onChangeCallback, categoriesRef) {
+        if (!multiSelectEl) return;
+        
+        const trigger = multiSelectEl.querySelector('.filter-bar__multiselect-trigger');
+        const allCheckbox = multiSelectEl.querySelector('.filter-bar__multiselect-all input[type="checkbox"]');
+        const optionsContainer = multiSelectEl.querySelector('.filter-bar__multiselect-options');
+        
+        // Trigger-Klick öffnet/schließt Dropdown
+        if (trigger) {
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                UI.toggleCategoryMultiSelect(multiSelectEl);
+            });
+        }
+        
+        // "Alle" Checkbox
+        if (allCheckbox) {
+            allCheckbox.addEventListener('change', () => {
+                const isChecked = allCheckbox.checked;
+                const categoryCheckboxes = multiSelectEl.querySelectorAll('.filter-bar__multiselect-options input[type="checkbox"]');
+                
+                categoryCheckboxes.forEach(cb => {
+                    cb.checked = isChecked;
+                });
+                
+                UI.updateCategoryMultiSelectUI(multiSelectEl, categoriesRef);
+                onChangeCallback();
+            });
+        }
+        
+        // Einzelne Kategorie-Checkboxen (Event Delegation)
+        if (optionsContainer) {
+            optionsContainer.addEventListener('change', (e) => {
+                if (e.target.matches('input[type="checkbox"]')) {
+                    const categoryCheckboxes = multiSelectEl.querySelectorAll('.filter-bar__multiselect-options input[type="checkbox"]');
+                    const allChecked = Array.from(categoryCheckboxes).every(cb => cb.checked);
+                    const noneChecked = Array.from(categoryCheckboxes).every(cb => !cb.checked);
+                    
+                    // "Alle" Checkbox aktualisieren
+                    if (allCheckbox) {
+                        allCheckbox.checked = allChecked;
+                    }
+                    
+                    // Wenn keine ausgewählt, wieder alle auswählen
+                    if (noneChecked && allCheckbox) {
+                        allCheckbox.checked = true;
+                        categoryCheckboxes.forEach(cb => cb.checked = true);
+                    }
+                    
+                    UI.updateCategoryMultiSelectUI(multiSelectEl, categoriesRef);
+                    onChangeCallback();
+                }
+            });
+        }
+        
+        // Klicks außerhalb schließen das Dropdown
+        document.addEventListener('click', (e) => {
+            if (UI.isCategoryMultiSelectOpen(multiSelectEl) && !multiSelectEl.contains(e.target)) {
+                UI.closeAllCategoryMultiSelects();
+            }
+        });
+    }
+
+    // ========================================
     // Event Binding
     // ========================================
 
@@ -1457,7 +1542,6 @@ const App = (function() {
             loadAndRenderAnalysis();
         });
         els.filterCompany.addEventListener('change', loadAndRenderAnalysis);
-        els.filterCategory.addEventListener('change', loadAndRenderAnalysis);
         
         // Filter Changes (Entries View)
         els.entriesFilterPeriod.addEventListener('change', () => {
@@ -1466,7 +1550,12 @@ const App = (function() {
             loadAndRenderEntriesList();
         });
         els.entriesFilterCompany.addEventListener('change', loadAndRenderEntriesList);
-        els.entriesFilterCategory.addEventListener('change', loadAndRenderEntriesList);
+        
+        // Multi-Select Category Filter (Analysis View)
+        bindCategoryMultiSelectEvents(els.filterCategory, loadAndRenderAnalysis, categories);
+        
+        // Multi-Select Category Filter (Entries View)
+        bindCategoryMultiSelectEvents(els.entriesFilterCategory, loadAndRenderEntriesList, categories);
         
         // Entries Date Navigator Buttons
         els.btnEntriesDatePrev.addEventListener('click', () => navigateEntriesDate(-1));

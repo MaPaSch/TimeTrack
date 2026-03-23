@@ -629,6 +629,169 @@ const UI = (function() {
         }
     }
 
+    // ========================================
+    // Multi-Select Category Filter
+    // ========================================
+
+    /**
+     * Befüllt ein Multi-Select mit Kategorien
+     * @param {HTMLElement} multiSelectElement - Das Multi-Select Container Element
+     * @param {Array} categories - Array von Kategorie-Objekten
+     * @param {Array} selectedIds - Array der vorab ausgewählten IDs (optional)
+     */
+    function populateCategoryMultiSelect(multiSelectElement, categories, selectedIds = ['all']) {
+        const optionsContainer = multiSelectElement.querySelector('.filter-bar__multiselect-options');
+        const allCheckbox = multiSelectElement.querySelector('.filter-bar__multiselect-all input[type="checkbox"]');
+        
+        // Vorhandene Optionen entfernen
+        optionsContainer.innerHTML = '';
+        
+        // Kategorien als Checkboxen hinzufügen
+        categories.forEach(category => {
+            const optionDiv = document.createElement('div');
+            optionDiv.className = 'filter-bar__multiselect-option';
+            
+            const checkboxId = `${multiSelectElement.id}-cat-${category.id}`;
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = checkboxId;
+            checkbox.value = category.id;
+            checkbox.checked = selectedIds.includes('all') || selectedIds.includes(category.id);
+            
+            const label = document.createElement('label');
+            label.htmlFor = checkboxId;
+            label.textContent = category.name;
+            
+            optionDiv.appendChild(checkbox);
+            optionDiv.appendChild(label);
+            optionsContainer.appendChild(optionDiv);
+        });
+        
+        // "Alle" Checkbox aktualisieren
+        if (allCheckbox) {
+            allCheckbox.checked = selectedIds.includes('all') || selectedIds.length === 0;
+        }
+        
+        // UI aktualisieren
+        updateCategoryMultiSelectUI(multiSelectElement, categories);
+    }
+
+    /**
+     * Gibt die ausgewählten Kategorie-IDs zurück
+     * @param {HTMLElement} multiSelectElement - Das Multi-Select Container Element
+     * @returns {Array} Array der ausgewählten IDs, oder ['all'] wenn alle ausgewählt
+     */
+    function getSelectedCategoryIds(multiSelectElement) {
+        const allCheckbox = multiSelectElement.querySelector('.filter-bar__multiselect-all input[type="checkbox"]');
+        
+        // Wenn "Alle" gecheckt ist, gib 'all' zurück
+        if (allCheckbox && allCheckbox.checked) {
+            return ['all'];
+        }
+        
+        // Sammle alle gecheckten Kategorie-Checkboxes
+        const checkboxes = multiSelectElement.querySelectorAll('.filter-bar__multiselect-options input[type="checkbox"]:checked');
+        const selectedIds = Array.from(checkboxes).map(cb => cb.value);
+        
+        return selectedIds.length > 0 ? selectedIds : ['all'];
+    }
+
+    /**
+     * Aktualisiert die Multi-Select UI (Tags, Text, "Alle"-Status)
+     * @param {HTMLElement} multiSelectElement - Das Multi-Select Container Element
+     * @param {Array} categories - Array von Kategorie-Objekten für die Namensauflösung
+     */
+    function updateCategoryMultiSelectUI(multiSelectElement, categories = []) {
+        const triggerText = multiSelectElement.querySelector('.filter-bar__multiselect-text');
+        const allCheckbox = multiSelectElement.querySelector('.filter-bar__multiselect-all input[type="checkbox"]');
+        const categoryCheckboxes = multiSelectElement.querySelectorAll('.filter-bar__multiselect-options input[type="checkbox"]');
+        
+        const selectedIds = getSelectedCategoryIds(multiSelectElement);
+        
+        // Wenn "Alle" ausgewählt ist oder nichts ausgewählt
+        if (selectedIds.includes('all')) {
+            triggerText.textContent = 'Alle';
+            triggerText.classList.remove('filter-bar__multiselect-tags');
+            
+            // Alle Kategorie-Checkboxen auf checked setzen
+            categoryCheckboxes.forEach(cb => cb.checked = true);
+            if (allCheckbox) allCheckbox.checked = true;
+            return;
+        }
+        
+        // "Alle" Checkbox deaktivieren
+        if (allCheckbox) allCheckbox.checked = false;
+        
+        // Erstelle Map für Kategorie-Namen
+        const categoryMap = new Map(categories.map(c => [c.id, c.name]));
+        
+        // Tags-Container erstellen
+        const tagsContainer = document.createElement('span');
+        tagsContainer.className = 'filter-bar__multiselect-tags';
+        
+        if (selectedIds.length === 0) {
+            triggerText.textContent = 'Keine';
+            triggerText.classList.remove('filter-bar__multiselect-tags');
+        } else if (selectedIds.length === 1) {
+            const catName = categoryMap.get(selectedIds[0]) || 'Kategorie';
+            triggerText.textContent = catName;
+            triggerText.classList.remove('filter-bar__multiselect-tags');
+        } else if (selectedIds.length <= 2) {
+            // Zeige bis zu 2 Kategorienamen an
+            const names = selectedIds.map(id => categoryMap.get(id) || 'Unbekannt');
+            triggerText.textContent = names.join(', ');
+            triggerText.classList.remove('filter-bar__multiselect-tags');
+        } else {
+            // Zeige "Kategorie1 +X mehr" an
+            const firstName = categoryMap.get(selectedIds[0]) || 'Kategorie';
+            const moreCount = selectedIds.length - 1;
+            triggerText.innerHTML = `<span class="filter-bar__multiselect-tag">${firstName}</span><span class="filter-bar__multiselect-tag-more">+${moreCount} mehr</span>`;
+            triggerText.classList.add('filter-bar__multiselect-tags');
+        }
+    }
+
+    /**
+     * Öffnet oder schließt das Multi-Select Dropdown
+     * @param {HTMLElement} multiSelectElement - Das Multi-Select Container Element
+     */
+    function toggleCategoryMultiSelect(multiSelectElement) {
+        const isOpen = multiSelectElement.classList.contains('filter-bar__multiselect--open');
+        
+        // Alle anderen Multi-Selects schließen
+        document.querySelectorAll('.filter-bar__multiselect--open').forEach(el => {
+            el.classList.remove('filter-bar__multiselect--open');
+            const trigger = el.querySelector('.filter-bar__multiselect-trigger');
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        });
+        
+        if (!isOpen) {
+            multiSelectElement.classList.add('filter-bar__multiselect--open');
+            const trigger = multiSelectElement.querySelector('.filter-bar__multiselect-trigger');
+            if (trigger) trigger.setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    /**
+     * Schließt alle Multi-Select Dropdowns
+     */
+    function closeAllCategoryMultiSelects() {
+        document.querySelectorAll('.filter-bar__multiselect--open').forEach(el => {
+            el.classList.remove('filter-bar__multiselect--open');
+            const trigger = el.querySelector('.filter-bar__multiselect-trigger');
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    /**
+     * Prüft ob ein Multi-Select geöffnet ist
+     * @param {HTMLElement} multiSelectElement - Das Multi-Select Container Element
+     * @returns {boolean}
+     */
+    function isCategoryMultiSelectOpen(multiSelectElement) {
+        return multiSelectElement.classList.contains('filter-bar__multiselect--open');
+    }
+
     /**
      * Zeigt das Inline-Kategorie-Eingabefeld
      */
@@ -2507,6 +2670,13 @@ const UI = (function() {
         // Dropdowns
         populateCompanySelect,
         populateCategorySelect,
+        // Multi-Select Category Filter
+        populateCategoryMultiSelect,
+        getSelectedCategoryIds,
+        updateCategoryMultiSelectUI,
+        toggleCategoryMultiSelect,
+        closeAllCategoryMultiSelects,
+        isCategoryMultiSelectOpen,
         // Rendering
         renderEntries,
         renderCompanies,
