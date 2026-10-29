@@ -21,7 +21,6 @@ const Timer = (function() {
 
     // Callbacks
     let onTick = null;
-    let onStop = null;
     let onStateChange = null;
 
     /**
@@ -180,10 +179,6 @@ const Timer = (function() {
         clearState();
         notifyStateChange();
 
-        if (typeof onStop === 'function') {
-            onStop(result);
-        }
-
         return result;
     }
 
@@ -241,19 +236,6 @@ const Timer = (function() {
     }
 
     /**
-     * Toggle Timer Start/Pause/Resume
-     */
-    function toggle() {
-        if (state.isRunning) {
-            pause();
-        } else if (state.isPaused) {
-            resume();
-        } else {
-            start();
-        }
-    }
-
-    /**
      * Gibt zurück ob der Timer läuft
      * @returns {boolean}
      */
@@ -297,14 +279,6 @@ const Timer = (function() {
     }
 
     /**
-     * Setzt Callback für Timer-Stop
-     * @param {Function} callback - (result: Object) => void
-     */
-    function setOnStop(callback) {
-        onStop = callback;
-    }
-
-    /**
      * Setzt Callback für Zustandsänderungen
      * @param {Function} callback - (state: Object) => void
      */
@@ -327,13 +301,11 @@ const Timer = (function() {
         pause,
         resume,
         reset,
-        toggle,
         isRunning,
         isPaused,
         getElapsed,
         getStartTime,
         setOnTick,
-        setOnStop,
         setOnStateChange
     };
 })();

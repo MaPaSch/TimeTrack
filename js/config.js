@@ -7,15 +7,12 @@ const Config = (function() {
     'use strict';
 
     // Supabase Konfiguration
-    // Diese Werte müssen mit den Daten aus dem Supabase Dashboard ersetzt werden
     const SUPABASE_URL = 'https://andgylotaalnbrpmlojo.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_2FwzSwfEdJ9zAlATmWknYw_zh6Bka78';
 
     // App-Konfiguration
-    const APP_VERSION = '2.1.0';
+    const APP_VERSION = '2.2.1';
     const SYNC_INTERVAL_MS = 300000; // 5 Minuten (Delta-Pull)
-    const SYNC_RETRY_DELAY_MS = 5000; // 5 Sekunden bei Fehler
-    const PUSH_DEBOUNCE_MS = 5000; // 5 Sekunden Debounce für Push
 
     /**
      * Basis-URL der App für E-Mail-Links (z. B. Passwort zurücksetzen).
@@ -59,8 +56,6 @@ const Config = (function() {
         SUPABASE_ANON_KEY,
         APP_VERSION,
         SYNC_INTERVAL_MS,
-        SYNC_RETRY_DELAY_MS,
-        PUSH_DEBOUNCE_MS,
         isSupabaseConfigured,
         getPasswordResetRedirectUrl
     };

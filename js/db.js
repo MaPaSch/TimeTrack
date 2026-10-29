@@ -7,14 +7,18 @@ const DB = (function() {
     'use strict';
 
     const DB_NAME = 'TimeTrackDB';
-    const DB_VERSION = 2; // Version erhöht für Sync-Metadaten
-    
+    const DB_VERSION = 3; // v3: Kategorie-Farben (colorIndex) + Textbausteine
+
     const STORES = {
         COMPANIES: 'companies',
         CATEGORIES: 'categories',
         TIME_ENTRIES: 'timeEntries',
+        TEXT_SNIPPETS: 'textSnippets',
         SYNC_QUEUE: 'syncQueue' // NEU: Ausstehende Sync-Operationen
     };
+
+    // Anzahl der Farben in der Kategorie-Palette (siehe UI.CATEGORY_COLORS)
+    const CATEGORY_COLOR_COUNT = 15;
 
     // Sync-States für Einträge
     const SYNC_STATE = {
@@ -84,6 +88,33 @@ const DB = (function() {
                     syncQueueStore.createIndex('entityId', 'entityId', { unique: false });
                     syncQueueStore.createIndex('operation', 'operation', { unique: false });
                     syncQueueStore.createIndex('createdAt', 'createdAt', { unique: false });
+                }
+
+                // Text Snippets Store (NEU in Version 3)
+                if (!database.objectStoreNames.contains(STORES.TEXT_SNIPPETS)) {
+                    const snippetsStore = database.createObjectStore(STORES.TEXT_SNIPPETS, { keyPath: 'id' });
+                    snippetsStore.createIndex('createdAt', 'createdAt', { unique: false });
+                    snippetsStore.createIndex('syncState', 'syncState', { unique: false });
+                }
+
+                // Migration: Kategorien bekommen eine feste Farbe (Version 2 -> 3).
+                // Reihenfolge nach createdAt entspricht der bisherigen Farbvergabe in der Verwaltung.
+                if (oldVersion > 0 && oldVersion < 3) {
+                    const categoriesStore = event.target.transaction.objectStore(STORES.CATEGORIES);
+                    const request = categoriesStore.getAll();
+                    request.onsuccess = () => {
+                        request.result
+                            .sort((a, b) => a.createdAt - b.createdAt)
+                            .forEach((category, index) => {
+                                if (category.colorIndex === undefined || category.colorIndex === null) {
+                                    categoriesStore.put({
+                                        ...category,
+                                        colorIndex: index % CATEGORY_COLOR_COUNT,
+                                        syncState: SYNC_STATE.PENDING
+                                    });
+                                }
+                            });
+                    };
                 }
 
                 // Migration: Sync-Indizes zu bestehenden Stores hinzufügen (Version 1 -> 2)
@@ -187,19 +218,21 @@ const DB = (function() {
 
     /**
      * Generische Update Funktion (mit Sync-Metadaten)
-     * @param {string} storeName 
-     * @param {Object} item 
+     * Lokale Änderungen sind immer PENDING – Aufrufer übergeben meist den bestehenden
+     * Datensatz inkl. syncState 'synced', der sonst den Push verhindern würde.
+     * @param {string} storeName
+     * @param {Object} item
      * @returns {Promise<Object>}
      */
     function update(storeName, item) {
         return new Promise((resolve, reject) => {
             const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
-            
+
             const updatedItem = {
                 ...item,
                 updatedAt: Date.now(),
-                syncState: item.syncState || SYNC_STATE.PENDING
+                syncState: SYNC_STATE.PENDING
             };
             
             const request = store.put(updatedItem);
@@ -241,11 +274,19 @@ const DB = (function() {
     // ========================================
 
     /**
-     * Lädt alle Unternehmen
+     * Sortiert nach Name (ohne Groß-/Kleinschreibung)
+     */
+    function compareByName(a, b) {
+        return a.name.localeCompare(b.name, 'de', { sensitivity: 'base' });
+    }
+
+    /**
+     * Lädt alle Unternehmen (alphabetisch sortiert)
      * @returns {Promise<Array>}
      */
-    function getCompanies() {
-        return getAll(STORES.COMPANIES);
+    async function getCompanies() {
+        const companies = await getAll(STORES.COMPANIES);
+        return companies.sort(compareByName);
     }
 
     /**
@@ -307,11 +348,15 @@ const DB = (function() {
     }
 
     /**
-     * Fügt eine Kategorie hinzu
-     * @param {Object} category - { name: string }
+     * Fügt eine Kategorie hinzu. Ohne colorIndex wird die nächste Palettenfarbe vergeben.
+     * @param {Object} category - { name: string, colorIndex?: number }
      * @returns {Promise<Object>}
      */
-    function addCategory(category) {
+    async function addCategory(category) {
+        if (category.colorIndex === undefined || category.colorIndex === null) {
+            const count = (await getAll(STORES.CATEGORIES)).length;
+            category = { ...category, colorIndex: count % CATEGORY_COLOR_COUNT };
+        }
         return add(STORES.CATEGORIES, category);
     }
 
@@ -331,6 +376,55 @@ const DB = (function() {
      */
     function updateCategory(category) {
         return update(STORES.CATEGORIES, category);
+    }
+
+    // ========================================
+    // Text Snippets API
+    // ========================================
+
+    /**
+     * Lädt alle Textbausteine (alphabetisch sortiert)
+     * @returns {Promise<Array>}
+     */
+    async function getTextSnippets() {
+        const snippets = await getAll(STORES.TEXT_SNIPPETS);
+        return snippets.sort((a, b) => a.content.localeCompare(b.content, 'de', { sensitivity: 'base' }));
+    }
+
+    /**
+     * Lädt einen Textbaustein nach ID
+     * @param {string} id
+     * @returns {Promise<Object>}
+     */
+    function getTextSnippet(id) {
+        return getById(STORES.TEXT_SNIPPETS, id);
+    }
+
+    /**
+     * Fügt einen Textbaustein hinzu
+     * @param {Object} snippet - { content: string }
+     * @returns {Promise<Object>}
+     */
+    function addTextSnippet(snippet) {
+        return add(STORES.TEXT_SNIPPETS, snippet);
+    }
+
+    /**
+     * Aktualisiert einen Textbaustein
+     * @param {Object} snippet - Vollständiges Objekt mit id
+     * @returns {Promise<Object>}
+     */
+    function updateTextSnippet(snippet) {
+        return update(STORES.TEXT_SNIPPETS, snippet);
+    }
+
+    /**
+     * Löscht einen Textbaustein
+     * @param {string} id
+     * @returns {Promise<void>}
+     */
+    function deleteTextSnippet(id) {
+        return remove(STORES.TEXT_SNIPPETS, id);
     }
 
     // ========================================
@@ -454,6 +548,7 @@ const DB = (function() {
         await clearStore(STORES.COMPANIES);
         await clearStore(STORES.CATEGORIES);
         await clearStore(STORES.TIME_ENTRIES);
+        await clearStore(STORES.TEXT_SNIPPETS);
     }
 
     // ========================================
@@ -462,17 +557,19 @@ const DB = (function() {
 
     /**
      * Lädt alle Daten für Export
-     * @returns {Promise<Object>} { companies, categories, timeEntries }
+     * @returns {Promise<Object>} { companies, categories, timeEntries, textSnippets }
      */
     async function getAllData() {
         const companies = await getAll(STORES.COMPANIES);
         const categories = await getAll(STORES.CATEGORIES);
         const timeEntries = await getAll(STORES.TIME_ENTRIES);
-        
+        const textSnippets = await getAll(STORES.TEXT_SNIPPETS);
+
         return {
             companies,
             categories,
-            timeEntries
+            timeEntries,
+            textSnippets
         };
     }
 
@@ -486,6 +583,7 @@ const DB = (function() {
             companiesAdded: 0,
             categoriesAdded: 0,
             entriesAdded: 0,
+            snippetsAdded: 0,
             skipped: 0
         };
 
@@ -493,10 +591,12 @@ const DB = (function() {
         const existingCompanies = await getAll(STORES.COMPANIES);
         const existingCategories = await getAll(STORES.CATEGORIES);
         const existingEntries = await getAll(STORES.TIME_ENTRIES);
-        
+        const existingSnippets = await getAll(STORES.TEXT_SNIPPETS);
+
         const existingCompanyIds = new Set(existingCompanies.map(c => c.id));
         const existingCategoryIds = new Set(existingCategories.map(c => c.id));
         const existingEntryIds = new Set(existingEntries.map(e => e.id));
+        const existingSnippetIds = new Set(existingSnippets.map(s => s.id));
 
         // Unternehmen importieren
         if (data.companies && Array.isArray(data.companies)) {
@@ -519,7 +619,7 @@ const DB = (function() {
             for (const category of data.categories) {
                 if (category.id && !existingCategoryIds.has(category.id)) {
                     try {
-                        await add(STORES.CATEGORIES, category);
+                        await addCategory(category);
                         stats.categoriesAdded++;
                     } catch (e) {
                         stats.skipped++;
@@ -537,6 +637,22 @@ const DB = (function() {
                     try {
                         await add(STORES.TIME_ENTRIES, entry);
                         stats.entriesAdded++;
+                    } catch (e) {
+                        stats.skipped++;
+                    }
+                } else {
+                    stats.skipped++;
+                }
+            }
+        }
+
+        // Textbausteine importieren
+        if (data.textSnippets && Array.isArray(data.textSnippets)) {
+            for (const snippet of data.textSnippets) {
+                if (snippet.id && !existingSnippetIds.has(snippet.id)) {
+                    try {
+                        await add(STORES.TEXT_SNIPPETS, snippet);
+                        stats.snippetsAdded++;
                     } catch (e) {
                         stats.skipped++;
                     }
@@ -615,57 +731,63 @@ const DB = (function() {
     }
 
     /**
-     * Aktualisiert den Sync-State einer Entität
-     * @param {string} storeName 
-     * @param {string} id 
-     * @param {string} syncState 
-     * @returns {Promise<void>}
+     * Markiert einen gepushten Datensatz als synchronisiert – aber nur, wenn er seit
+     * dem Push nicht erneut lokal geändert wurde (sonst bleibt die neue Änderung PENDING)
+     * @param {string} storeName
+     * @param {string} id
+     * @param {number} pushedUpdatedAt - updatedAt des gepushten Stands
+     * @param {number} syncedAt - updated_at des Cloud-Datensatzes (ms)
+     * @returns {Promise<boolean>} true, wenn markiert
      */
-    async function updateSyncState(storeName, id, syncState) {
-        const item = await getById(storeName, id);
-        if (item) {
-            item.syncState = syncState;
-            item.updatedAt = Date.now();
-            await update(storeName, item);
-        }
-    }
-
-    /**
-     * Lädt alle Einträge mit einem bestimmten Sync-State
-     * @param {string} storeName 
-     * @param {string} syncState 
-     * @returns {Promise<Array>}
-     */
-    function getBySyncState(storeName, syncState) {
+    function markSynced(storeName, id, pushedUpdatedAt, syncedAt) {
         return new Promise((resolve, reject) => {
-            const transaction = db.transaction([storeName], 'readonly');
+            const transaction = db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
-            
-            // Falls Index existiert, nutzen
-            if (store.indexNames.contains('syncState')) {
-                const index = store.index('syncState');
-                const request = index.getAll(syncState);
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject(new Error(`Fehler beim Laden aus ${storeName}`));
-            } else {
-                // Fallback: Alle laden und filtern
-                const request = store.getAll();
-                request.onsuccess = () => {
-                    const filtered = request.result.filter(item => item.syncState === syncState);
-                    resolve(filtered);
-                };
-                request.onerror = () => reject(new Error(`Fehler beim Laden aus ${storeName}`));
-            }
+            const request = store.get(id);
+            let marked = false;
+
+            request.onsuccess = () => {
+                const item = request.result;
+                if (item && item.updatedAt === pushedUpdatedAt) {
+                    store.put({ ...item, syncState: SYNC_STATE.SYNCED, syncedAt });
+                    marked = true;
+                }
+            };
+            transaction.oncomplete = () => resolve(marked);
+            transaction.onerror = () => reject(new Error(`Fehler beim Markieren von ${storeName}/${id}`));
         });
     }
 
     /**
-     * Zählt ausstehende Sync-Operationen
-     * @returns {Promise<number>}
+     * Schreibt einen Datensatz aus der Cloud (ohne dataChanged-Event, also ohne erneuten Push)
+     * @param {string} storeName
+     * @param {Object} item
+     * @returns {Promise<void>}
      */
-    async function getPendingSyncCount() {
-        const queue = await getSyncQueue();
-        return queue.length;
+    function putFromSync(storeName, item) {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([storeName], 'readwrite');
+            const request = transaction.objectStore(storeName).put(item);
+
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(new Error(`Fehler beim Speichern in ${storeName}`));
+        });
+    }
+
+    /**
+     * Löscht einen in der Cloud gelöschten Datensatz lokal (ohne Sync-Queue und Event)
+     * @param {string} storeName
+     * @param {string} id
+     * @returns {Promise<void>}
+     */
+    function removeFromSync(storeName, id) {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([storeName], 'readwrite');
+            const request = transaction.objectStore(storeName).delete(id);
+
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(new Error(`Fehler beim Löschen aus ${storeName}`));
+        });
     }
 
     // Öffentliche API
@@ -686,6 +808,12 @@ const DB = (function() {
         updateCategory,
         deleteCategory,
         countEntriesForCategory,
+        // Text Snippets
+        getTextSnippets,
+        getTextSnippet,
+        addTextSnippet,
+        updateTextSnippet,
+        deleteTextSnippet,
         // Time Entries
         getTimeEntries,
         getTimeEntry,
@@ -702,9 +830,9 @@ const DB = (function() {
         getSyncQueue,
         removeFromSyncQueue,
         clearSyncQueue,
-        updateSyncState,
-        getBySyncState,
-        getPendingSyncCount,
+        markSynced,
+        putFromSync,
+        removeFromSync,
         SYNC_STATE
     };
 })();

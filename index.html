@@ -15,16 +15,11 @@
     <link rel="manifest" href="manifest.json">
     
     <!-- Apple Touch Icons -->
-    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
     <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
     
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
     <!-- Supabase SDK (nur laden wenn Online) -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0" crossorigin="anonymous" defer></script>
     
     <!-- Styles -->
     <link rel="stylesheet" href="css/styles.css">
@@ -33,7 +28,7 @@
     <script>
         (function() {
             var theme = localStorage.getItem('timetrack-theme');
-            if (!theme) {
+            if (!theme || theme === 'system') {
                 theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
             }
             document.documentElement.setAttribute('data-theme', theme);
@@ -51,15 +46,7 @@
         
         <!-- Header -->
         <header class="header">
-            <svg class="header__logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" width="200" height="40" role="img" aria-label="TimeTrack">
-                <text x="100" y="30" 
-                      font-family="'Outfit', sans-serif" 
-                      font-size="28" 
-                      text-anchor="middle"
-                      letter-spacing="-0.5">
-                    <tspan class="logo__primary" font-weight="600">Time</tspan><tspan class="logo__secondary" font-weight="400">Track</tspan>
-                </text>
-            </svg>
+            <h1 class="header__logo" aria-label="TimeTrack"><span class="logo__primary">Time</span><span class="logo__secondary">Track</span></h1>
         </header>
 
         <!-- Main Content Area -->
@@ -69,923 +56,371 @@
             <section id="view-timer" class="view view--active" data-view="timer">
                 <div class="timer">
                     <div class="timer__display timer__display--hidden">
-                        <span id="timer-hours" class="timer__segment">00</span>
-                        <span class="timer__separator">:</span>
-                        <span id="timer-minutes" class="timer__segment">00</span>
-                        <span class="timer__separator">:</span>
-                        <span id="timer-seconds" class="timer__segment">00</span>
+                        <span id="timer-hours" class="timer__segment">00</span><span class="timer__separator">:</span><span id="timer-minutes" class="timer__segment">00</span><span class="timer__separator">:</span><span id="timer-seconds" class="timer__segment">00</span>
                     </div>
-                    <div class="timer__buttons">
-                        <button id="btn-timer-main" class="btn btn--primary btn--large timer__button" aria-label="Timer starten">
-                            <svg class="btn__icon" id="icon-play" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M8 5v14l11-7z"/>
-                            </svg>
-                            <svg class="btn__icon btn__icon--hidden" id="icon-stop" viewBox="0 0 24 24" fill="currentColor">
-                                <rect x="6" y="6" width="12" height="12"/>
-                            </svg>
-                            <span id="btn-timer-main-text">Start</span>
-                        </button>
-                        <button id="btn-timer-secondary" class="btn btn--secondary timer__button--secondary timer__button--hidden" aria-label="Pause">
-                            <svg class="btn__icon" id="icon-secondary-pause" viewBox="0 0 24 24" fill="currentColor">
-                                <rect x="6" y="4" width="4" height="16"/>
-                                <rect x="14" y="4" width="4" height="16"/>
-                            </svg>
-                            <svg class="btn__icon btn__icon--hidden" id="icon-secondary-stop" viewBox="0 0 24 24" fill="currentColor">
-                                <rect x="6" y="6" width="12" height="12"/>
-                            </svg>
-                            <span id="btn-timer-secondary-text">Pause</span>
-                        </button>
-                    </div>
+                    <button type="button" id="btn-timer-main" class="timer__button" aria-label="Timer starten">
+                        <span id="timer-main-icon" class="timer__button-icon"></span>
+                        <span id="timer-main-text">Start</span>
+                    </button>
+                    <button type="button" id="btn-timer-secondary" class="timer__secondary timer__secondary--hidden" aria-label="Timer pausieren">
+                        <span id="timer-secondary-icon" class="timer__secondary-icon"></span>
+                        <span id="timer-secondary-text">Pause</span>
+                    </button>
                     <p class="timer__status" id="timer-status">Bereit zum Starten</p>
                 </div>
             </section>
 
             <!-- Entries View -->
-            <section id="view-entries" class="view" data-view="entries">
-                <div class="entries-view">
-                    <!-- Filter Bar -->
-                    <div class="filter-bar">
-                        <div class="filter-bar__group">
-                            <label class="filter-bar__label" for="entries-filter-period">Zeitraum</label>
-                            <select id="entries-filter-period" class="select">
-                                <option value="day">Heute</option>
-                                <option value="week">Diese Woche</option>
-                                <option value="month" selected>Dieser Monat</option>
-                                <option value="year">Dieses Jahr</option>
-                            </select>
-                        </div>
-                        <div class="filter-bar__group">
-                            <label class="filter-bar__label" for="entries-filter-company">Unternehmen</label>
-                            <select id="entries-filter-company" class="select">
-                                <option value="all">Alle</option>
-                                <!-- Dynamisch gefüllt -->
-                            </select>
-                        </div>
-                        <div class="filter-bar__group">
-                            <label class="filter-bar__label">Kategorie</label>
-                            <div class="filter-bar__multiselect" id="entries-filter-category">
-                                <button class="filter-bar__multiselect-trigger" type="button" aria-expanded="false">
-                                    <span class="filter-bar__multiselect-text">Alle</span>
-                                    <svg class="filter-bar__multiselect-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M6 9l6 6 6-6"/>
-                                    </svg>
-                                </button>
-                                <div class="filter-bar__multiselect-dropdown">
-                                    <div class="filter-bar__multiselect-option filter-bar__multiselect-all">
-                                        <input type="checkbox" id="entries-cat-all" value="all" checked>
-                                        <label for="entries-cat-all">Alle</label>
-                                    </div>
-                                    <div class="filter-bar__multiselect-options">
-                                        <!-- Dynamisch gefüllt -->
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Entries List -->
-                    <div class="entries" id="entries-list">
-                        <!-- Dynamisch gefüllt -->
-                        <div class="entries__empty" id="entries-empty">
-                            <svg class="entries__empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M12 6v6l4 2"/>
-                            </svg>
-                            <p>Keine Einträge gefunden</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Date Navigator (fixiert unten) für Entries -->
-                <div class="date-picker__backdrop" id="entries-date-picker-backdrop"></div>
-                <div class="date-navigator date-navigator--entries" id="entries-date-navigator">
-                    <button class="date-navigator__btn" id="btn-entries-date-prev" aria-label="Zurück">
-                        <svg class="date-navigator__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M15 18l-6-6 6-6"/>
-                        </svg>
-                    </button>
-                    <button class="date-navigator__display" id="entries-date-navigator-display">
-                        <span id="entries-date-navigator-text">JANUAR 2026</span>
-                        <svg class="date-navigator__dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M6 9l6 6 6-6"/>
-                        </svg>
-                    </button>
-                    <button class="date-navigator__btn" id="btn-entries-date-next" aria-label="Vor">
-                        <svg class="date-navigator__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 18l6-6-6-6"/>
-                        </svg>
-                    </button>
-                    
-                    <!-- Date Picker Popup für Entries -->
-                    <div class="date-picker" id="entries-date-picker">
-                        <!-- Kalender für Tag und Woche -->
-                        <div class="date-picker__calendar" id="entries-date-picker-calendar">
-                            <div class="date-picker__header">
-                                <button class="date-picker__nav" id="btn-entries-picker-prev" aria-label="Vorheriger Monat">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M15 18l-6-6 6-6"/>
-                                    </svg>
-                                </button>
-                                <span class="date-picker__title" id="entries-picker-calendar-title">Januar 2026</span>
-                                <button class="date-picker__nav" id="btn-entries-picker-next" aria-label="Nächster Monat">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M9 18l6-6-6-6"/>
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="date-picker__weekdays">
-                                <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
-                            </div>
-                            <div class="date-picker__days" id="entries-picker-days">
-                                <!-- Dynamisch gefüllt -->
-                            </div>
-                        </div>
-                        
-                        <!-- Monat-Dropdown -->
-                        <div class="date-picker__months" id="entries-date-picker-months">
-                            <div class="date-picker__header">
-                                <button class="date-picker__nav" id="btn-entries-month-picker-prev" aria-label="Vorheriges Jahr">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M15 18l-6-6 6-6"/>
-                                    </svg>
-                                </button>
-                                <span class="date-picker__title" id="entries-picker-months-title">2026</span>
-                                <button class="date-picker__nav" id="btn-entries-month-picker-next" aria-label="Nächstes Jahr">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M9 18l6-6-6-6"/>
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="date-picker__month-grid" id="entries-picker-month-grid">
-                                <!-- Dynamisch gefüllt -->
-                            </div>
-                        </div>
-                        
-                        <!-- Jahr-Dropdown -->
-                        <div class="date-picker__years" id="entries-date-picker-years">
-                            <div class="date-picker__year-list" id="entries-picker-year-list">
-                                <!-- Dynamisch gefüllt -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <section id="view-entries" class="view view--list" data-view="entries">
+                <div id="entries-filter"></div>
+                <div id="entries-list" class="entries"></div>
+                <div id="entries-navigator"></div>
             </section>
 
             <!-- Analysis View -->
-            <section id="view-analysis" class="view" data-view="analysis">
-                <div class="analysis">
-                    <!-- Filter Bar -->
-                    <div class="filter-bar">
-                        <div class="filter-bar__group">
-                            <label class="filter-bar__label" for="filter-period">Zeitraum</label>
-                            <select id="filter-period" class="select">
-                                <option value="day">Heute</option>
-                                <option value="week">Diese Woche</option>
-                                <option value="month" selected>Dieser Monat</option>
-                                <option value="year">Dieses Jahr</option>
-                            </select>
-                        </div>
-                        <div class="filter-bar__group">
-                            <label class="filter-bar__label" for="filter-company">Unternehmen</label>
-                            <select id="filter-company" class="select">
-                                <option value="all">Alle</option>
-                                <!-- Dynamisch gefüllt -->
-                            </select>
-                        </div>
-                        <div class="filter-bar__group">
-                            <label class="filter-bar__label">Kategorie</label>
-                            <div class="filter-bar__multiselect" id="filter-category">
-                                <button class="filter-bar__multiselect-trigger" type="button" aria-expanded="false">
-                                    <span class="filter-bar__multiselect-text">Alle</span>
-                                    <svg class="filter-bar__multiselect-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M6 9l6 6 6-6"/>
-                                    </svg>
-                                </button>
-                                <div class="filter-bar__multiselect-dropdown">
-                                    <div class="filter-bar__multiselect-option filter-bar__multiselect-all">
-                                        <input type="checkbox" id="analysis-cat-all" value="all" checked>
-                                        <label for="analysis-cat-all">Alle</label>
-                                    </div>
-                                    <div class="filter-bar__multiselect-options">
-                                        <!-- Dynamisch gefüllt -->
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Category Chart with Donut -->
-                    <div class="category-chart" id="category-chart">
-                        <div class="category-chart__donut" id="chart-pie"></div>
-                    </div>
-
-                    <!-- Category Bars -->
-                    <div class="category-bars" id="category-bars">
-                        <!-- Dynamisch gefüllt -->
-                    </div>
-                </div>
-
-                <!-- Date Navigator (fixiert unten) -->
-                <div class="date-picker__backdrop" id="date-picker-backdrop"></div>
-                <div class="date-navigator" id="date-navigator">
-                    <button class="date-navigator__btn" id="btn-date-prev" aria-label="Zurück">
-                        <svg class="date-navigator__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M15 18l-6-6 6-6"/>
-                        </svg>
-                    </button>
-                    <button class="date-navigator__display" id="date-navigator-display">
-                        <span id="date-navigator-text">JANUAR 2026</span>
-                        <svg class="date-navigator__dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M6 9l6 6 6-6"/>
-                        </svg>
-                    </button>
-                    <button class="date-navigator__btn" id="btn-date-next" aria-label="Vor">
-                        <svg class="date-navigator__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 18l6-6-6-6"/>
-                        </svg>
-                    </button>
-                    
-                    <!-- Date Picker Popup -->
-                    <div class="date-picker" id="date-picker">
-                        <!-- Kalender für Tag und Woche -->
-                        <div class="date-picker__calendar" id="date-picker-calendar">
-                            <div class="date-picker__header">
-                                <button class="date-picker__nav" id="btn-picker-prev" aria-label="Vorheriger Monat">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M15 18l-6-6 6-6"/>
-                                    </svg>
-                                </button>
-                                <span class="date-picker__title" id="picker-calendar-title">Januar 2026</span>
-                                <button class="date-picker__nav" id="btn-picker-next" aria-label="Nächster Monat">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M9 18l6-6-6-6"/>
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="date-picker__weekdays">
-                                <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
-                            </div>
-                            <div class="date-picker__days" id="picker-days">
-                                <!-- Dynamisch gefüllt -->
-                            </div>
-                        </div>
-                        
-                        <!-- Monat-Dropdown -->
-                        <div class="date-picker__months" id="date-picker-months">
-                            <div class="date-picker__header">
-                                <button class="date-picker__nav" id="btn-month-picker-prev" aria-label="Vorheriges Jahr">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M15 18l-6-6 6-6"/>
-                                    </svg>
-                                </button>
-                                <span class="date-picker__title" id="picker-months-title">2026</span>
-                                <button class="date-picker__nav" id="btn-month-picker-next" aria-label="Nächstes Jahr">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M9 18l6-6-6-6"/>
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="date-picker__month-grid" id="picker-month-grid">
-                                <!-- Dynamisch gefüllt -->
-                            </div>
-                        </div>
-                        
-                        <!-- Jahr-Dropdown -->
-                        <div class="date-picker__years" id="date-picker-years">
-                            <div class="date-picker__year-list" id="picker-year-list">
-                                <!-- Dynamisch gefüllt -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <section id="view-analysis" class="view view--list" data-view="analysis">
+                <div id="analysis-filter"></div>
+                <div id="analysis-content" class="analysis"></div>
+                <div id="analysis-navigator"></div>
             </section>
 
             <!-- Management View -->
-            <section id="view-management" class="view" data-view="management">
-                <div class="management">
-                    <!-- Theme Toggle Section -->
-                    <div class="management__section">
-                        <div class="management__header">
-                            <h2 class="management__title">Darstellung</h2>
-                        </div>
-                        <button id="btn-toggle-theme" class="management__nav-btn" aria-label="Theme wechseln">
-                            <svg class="management__nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="5"/>
-                                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                            </svg>
-                            <span>Light / Dark Mode</span>
-                            <svg class="management__nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M9 18l6-6-6-6"/>
-                            </svg>
-                        </button>
-                    </div>
+            <section id="view-management" class="view view--management" data-view="management">
+                <!-- Darstellung -->
+                <h2 class="section-title">Darstellung</h2>
+                <div class="segmented" role="radiogroup" aria-label="Darstellung" id="theme-segmented">
+                    <button type="button" class="segmented__item" role="radio" data-theme-mode="system"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.85 12.65h2.3L12 9l-1.15 3.65zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69zM14.3 16l-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9h-1.9z"/></svg><span>System</span></button>
+                    <button type="button" class="segmented__item" role="radio" data-theme-mode="light"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 9c1.65 0 3 1.35 3 3s-1.35 3-3 3-3-1.35-3-3 1.35-3 3-3m0-2c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg><span>Hell</span></button>
+                    <button type="button" class="segmented__item" role="radio" data-theme-mode="dark"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.37 5.51c-.18.64-.27 1.31-.27 1.99 0 4.08 3.32 7.4 7.4 7.4.68 0 1.35-.09 1.99-.27C17.45 17.19 14.93 19 12 19c-3.86 0-7-3.14-7-7 0-2.93 1.81-5.45 4.37-6.49zM12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg><span>Dunkel</span></button>
+                </div>
 
-                    <!-- Cloud & Profil Section (NEU) -->
-                    <div class="management__section">
-                        <div class="management__header">
-                            <h2 class="management__title">Cloud & Profil</h2>
-                        </div>
-                        <button id="btn-open-profile" class="management__nav-btn" aria-label="Cloud-Synchronisation und Profil">
-                            <svg class="management__nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-                            </svg>
-                            <span id="profile-nav-text">Anmelden / Registrieren</span>
-                            <svg class="management__nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M9 18l6-6-6-6"/>
-                            </svg>
-                        </button>
-                    </div>
+                <hr class="section-divider">
 
-                    <!-- Daten Section (Import/Export) -->
-                    <div class="management__section">
-                        <div class="management__header">
-                            <h2 class="management__title">Daten</h2>
-                        </div>
-                        <div class="management__button-group">
-                            <button id="btn-open-stammdaten" class="management__nav-btn" aria-label="Unternehmen und Kategorien bearbeiten">
-                                <svg class="management__nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                                    <circle cx="12" cy="7" r="4"/>
-                                </svg>
-                                <span>Unternehmen & Kategorien</span>
-                                <svg class="management__nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M9 18l6-6-6-6"/>
-                                </svg>
-                            </button>    
-                            <button id="btn-import" class="management__action-btn" aria-label="Daten importieren">
-                                <svg class="management__action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="17 8 12 3 7 8"/>
-                                    <line x1="12" y1="3" x2="12" y2="15"/>
-                                </svg>
-                                <span>Import</span>
-                            </button>
-                            <button id="btn-export" class="management__action-btn" aria-label="Daten exportieren">
-                                <svg class="management__action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
-                                </svg>
-                                <span>Export</span>
-                            </button>
+                <!-- Cloud & Profil (nur PWA) -->
+                <button type="button" class="card nav-card" id="btn-open-profile" data-open-subpage="profile">
+                    <span class="nav-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg></span>
+                    <span class="nav-card__text">
+                        <span class="nav-card__title">Cloud &amp; Profil</span>
+                        <span class="nav-card__subtitle" id="profile-nav-text">Nicht angemeldet – Daten nur auf diesem Gerät</span>
+                    </span>
+                    <svg class="icon nav-card__chevron" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                </button>
+
+                <hr class="section-divider">
+
+                <!-- Import & Export -->
+                <div class="card card--padded">
+                    <div class="card__header">
+                        <span class="card__header-icon"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 15v3H6v-3H4v3c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-3h-2zm-1-4l-1.41-1.41L13 12.17V4h-2v8.17L8.41 9.59 7 11l5 5 5-5z"/></svg></span>
+                        <h3 class="card__title">Import &amp; Export</h3>
+                    </div>
+                    <p class="card__text">Sichern Sie Ihre Daten oder importieren Sie vorhandene Backups.</p>
+                    <div class="card__buttons">
+                        <button type="button" class="btn btn--tonal btn--compact" id="btn-import"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg><span>Importieren</span></button>
+                        <button type="button" class="btn btn--primary btn--compact" id="btn-export"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg><span>Exportieren</span></button>
+                    </div>
+                </div>
+
+                <hr class="section-divider">
+
+                <!-- Navigation -->
+                <div class="nav-card-list">
+                    <button type="button" class="card nav-card" data-open-subpage="management-data">
+                        <span class="nav-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z"/></svg></span>
+                        <span class="nav-card__text">
+                            <span class="nav-card__title">Datenverwaltung</span>
+                            <span class="nav-card__subtitle">Unternehmen und Kategorien verwalten</span>
+                        </span>
+                        <svg class="icon nav-card__chevron" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </button>
+                    <button type="button" class="card nav-card" data-open-subpage="text-snippets">
+                        <span class="nav-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 9h16v2H4zm0 4h10v2H4z"/></svg></span>
+                        <span class="nav-card__text">
+                            <span class="nav-card__title">Textbausteine</span>
+                            <span class="nav-card__subtitle">Wiederkehrende Notiztexte verwalten</span>
+                        </span>
+                        <svg class="icon nav-card__chevron" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </button>
+                </div>
+
+                <hr class="section-divider">
+
+                <!-- Gefahrenzone (aufklappbar) -->
+                <div class="card danger-card" id="danger-card">
+                    <button type="button" class="nav-card danger-card__toggle" aria-expanded="false" aria-controls="danger-card-body">
+                        <span class="nav-card__icon"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"/></svg></span>
+                        <span class="nav-card__text">
+                            <span class="nav-card__title">Gefahrenzone</span>
+                            <span class="nav-card__subtitle danger-card__subtitle">Alle Daten unwiderruflich löschen</span>
+                        </span>
+                    </button>
+                    <div class="danger-card__body" id="danger-card-body">
+                        <div class="danger-card__inner">
+                            <p class="card__text">Löscht alle Unternehmen, Kategorien, Einträge und Textbausteine unwiderruflich.</p>
+                            <button type="button" class="btn btn--outlined-danger btn--full-width" id="btn-delete-all"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14.12 10.47L12 12.59l-2.13-2.12-1.41 1.41L10.59 14l-2.12 2.12 1.41 1.41L12 15.41l2.12 2.12 1.41-1.41L13.41 14l2.12-2.12zM15.5 4l-1-1h-5l-1 1H5v2h14V4zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9z"/></svg><span>Alle Daten löschen</span></button>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Danger Zone Section -->
-                    <div class="management__section management__section--danger">
-                        <div class="management__header">
-                            <h2 class="management__title management__title--danger">Gefahrenzone</h2>
-                        </div>
-                        <button id="btn-delete-all" class="management__danger-btn" aria-label="Alle Daten löschen">
-                            <svg class="management__danger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="3 6 5 6 21 6"/>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                                <line x1="10" y1="11" x2="10" y2="17"/>
-                                <line x1="14" y1="11" x2="14" y2="17"/>
-                            </svg>
-                            <span>Alle Daten löschen</span>
-                        </button>
+                <hr class="section-divider">
+
+                <!-- Fußzeile -->
+                <footer class="card card--padded app-info">
+                    <span class="app-info__logo"><span class="logo__primary">Time</span><span class="logo__secondary">Track</span></span>
+                    <span class="app-info__version" id="app-version">Version</span>
+                    <span class="app-info__copyright">© 2026 QuietCode</span>
+                </footer>
+            </section>
+
+            <!-- Unterseite: Datenverwaltung -->
+            <section id="view-management-data" class="view view--subpage" data-view="management-data">
+                <header class="subpage-appbar">
+                    <button type="button" class="icon-btn" data-subpage-back aria-label="Zurück" title="Zurück"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+                    <h2 class="subpage-appbar__title">Datenverwaltung</h2>
+                </header>
+                <div class="list-section">
+                    <div class="list-section__header">
+                        <h3 class="section-title">Unternehmen</h3>
+                        <button type="button" class="btn btn--text" id="btn-add-company"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg><span>Neu</span></button>
                     </div>
-
-                    <!-- Footer with Credits -->
-                    <footer class="management__footer">
-                        <svg class="management__logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" width="160" height="32" role="img" aria-label="TimeTrack">
-                            <text x="100" y="30" 
-                                  font-family="'Outfit', sans-serif" 
-                                  font-size="28" 
-                                  text-anchor="middle"
-                                  letter-spacing="-0.5">
-                                <tspan class="logo__primary" font-weight="600">Time</tspan><tspan class="logo__secondary" font-weight="400">Track</tspan>
-                            </text>
-                        </svg>
-                        <p class="management__copyright">© Maximilian Schneider</p>
-                        <p class="management__version">App Version 2.1.4</p>
-                    </footer>
+                    <div class="card list-card" id="companies-list"></div>
+                </div>
+                <div class="list-section">
+                    <div class="list-section__header">
+                        <h3 class="section-title">Kategorien</h3>
+                        <button type="button" class="btn btn--text" id="btn-add-category"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg><span>Neu</span></button>
+                    </div>
+                    <div class="card list-card" id="categories-list"></div>
                 </div>
             </section>
 
-            <!-- Management Stammdaten Subpage -->
-            <section id="view-management-data" class="view" data-view="management-data">
-                <div class="subpage">
-                    <!-- Subpage Header -->
-                    <div class="subpage__header">
-                        <button id="btn-back-management" class="subpage__back" aria-label="Zurück zur Verwaltung">
-                            <svg class="subpage__back-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M15 18l-6-6 6-6"/>
-                            </svg>
-                        </button>
-                        <h2 class="subpage__title">Unternehmen & Kategorien</h2>
+            <!-- Unterseite: Textbausteine -->
+            <section id="view-text-snippets" class="view view--subpage" data-view="text-snippets">
+                <header class="subpage-appbar">
+                    <button type="button" class="icon-btn" data-subpage-back aria-label="Zurück" title="Zurück"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+                    <h2 class="subpage-appbar__title">Textbausteine</h2>
+                </header>
+                <div class="list-section">
+                    <div class="list-section__header">
+                        <p class="list-section__hint">Wiederkehrende Notizen, die beim Speichern eines Eintrags eingefügt werden können.</p>
+                        <button type="button" class="btn btn--text" id="btn-add-snippet"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg><span>Neu</span></button>
                     </div>
-
-                    <!-- Companies Section -->
-                    <div class="management__section">
-                        <div class="management__header">
-                            <h2 class="management__title">Unternehmen</h2>
-                            <button id="btn-add-company" class="btn btn--primary btn--small" aria-label="Unternehmen hinzufügen">
-                                <svg class="btn__icon" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                                </svg>
-                                <span>Neu</span>
-                            </button>
-                        </div>
-                        <ul class="management__list" id="companies-list">
-                            <!-- Dynamisch gefüllt -->
-                        </ul>
-                        <p class="management__empty" id="companies-empty">Keine Unternehmen vorhanden</p>
-                    </div>
-
-                    <!-- Categories Section -->
-                    <div class="management__section">
-                        <div class="management__header">
-                            <h2 class="management__title">Kategorien</h2>
-                            <button id="btn-add-category" class="btn btn--primary btn--small" aria-label="Kategorie hinzufügen">
-                                <svg class="btn__icon" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                                </svg>
-                                <span>Neu</span>
-                            </button>
-                        </div>
-                        <ul class="management__list management__list--categories" id="categories-list">
-                            <!-- Dynamisch gefüllt mit farbigen Balken -->
-                        </ul>
-                        <p class="management__empty" id="categories-empty">Keine Kategorien vorhanden</p>
-                    </div>
+                    <div class="card list-card" id="snippets-list"></div>
                 </div>
             </section>
 
-            <!-- Profile/Cloud Subpage (NEU) -->
-            <section id="view-profile" class="view" data-view="profile">
-                <div class="subpage">
-                    <!-- Subpage Header -->
-                    <div class="subpage__header">
-                        <button id="btn-back-profile" class="subpage__back" aria-label="Zurück zur Verwaltung">
-                            <svg class="subpage__back-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M15 18l-6-6 6-6"/>
-                            </svg>
+            <!-- Unterseite: Cloud & Profil (nur PWA) -->
+            <section id="view-profile" class="view view--subpage" data-view="profile">
+                <header class="subpage-appbar">
+                    <button type="button" class="icon-btn" data-subpage-back aria-label="Zurück" title="Zurück"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+                    <h2 class="subpage-appbar__title">Cloud &amp; Profil</h2>
+                </header>
+
+                <!-- Nicht angemeldet: Login-Bereich -->
+                <div id="profile-logged-out">
+                    <div class="card card--padded profile-intro">
+                        <span class="profile-intro__icon"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg></span>
+                        <h3 class="card__title">Cloud-Synchronisation</h3>
+                        <p class="card__text">Melden Sie sich an, um Ihre Daten sicher in der Cloud zu speichern und auf allen Geräten zu nutzen.</p>
+                    </div>
+
+                    <form id="form-login" class="form profile-form">
+                        <div class="form__group">
+                            <label class="form__label" for="login-email">E-Mail</label>
+                            <input type="email" id="login-email" class="input" placeholder="name@beispiel.de" required autocomplete="email">
+                        </div>
+                        <div class="form__group">
+                            <label class="form__label" for="login-password">Passwort</label>
+                            <input type="password" id="login-password" class="input" placeholder="Mindestens 6 Zeichen" required autocomplete="current-password">
+                            <a href="#" id="btn-forgot-password" class="profile-form__forgot-link">Passwort vergessen?</a>
+                        </div>
+                        <div class="form__error" id="login-error"></div>
+                        <button type="submit" class="btn btn--primary btn--full-width" id="btn-login">
+                            <span id="btn-login-text">Anmelden</span>
+                            <span id="btn-login-loading" class="btn__loading" style="display: none;"><svg class="btn__spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="30 60"/></svg></span>
                         </button>
-                        <h2 class="subpage__title">Cloud & Profil</h2>
+                    </form>
+
+                    <div class="profile-divider">
+                        <span>oder</span>
                     </div>
 
-                    <!-- Nicht angemeldet: Login-Bereich -->
-                    <div id="profile-logged-out" class="profile-section">
-                        <div class="profile-info">
-                            <svg class="profile-info__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-                            </svg>
-                            <h3 class="profile-info__title">Cloud-Synchronisation</h3>
-                            <p class="profile-info__text">Melde dich an, um deine Daten sicher in der Cloud zu speichern und auf allen Geräten zu nutzen.</p>
-                        </div>
+                    <button type="button" class="btn btn--outlined btn--full-width" id="btn-show-register">Neues Konto erstellen</button>
+                </div>
 
-                        <form id="form-login" class="form profile-form">
-                            <div class="form__group">
-                                <label class="form__label" for="login-email">E-Mail</label>
-                                <input type="email" id="login-email" class="input" placeholder="deine@email.de" required autocomplete="email">
-                            </div>
-                            <div class="form__group">
-                                <label class="form__label" for="login-password">Passwort</label>
-                                <input type="password" id="login-password" class="input" placeholder="Mindestens 6 Zeichen" required autocomplete="current-password">
-                                <a href="#" id="btn-forgot-password" class="profile-form__forgot-link">Passwort vergessen?</a>
-                            </div>
-                            <div class="form__error" id="login-error"></div>
-                            <div class="form__actions form__actions--stacked">
-                                <button type="submit" class="btn btn--primary btn--full-width" id="btn-login">
-                                    <span id="btn-login-text">Anmelden</span>
-                                    <span id="btn-login-loading" class="btn__loading" style="display: none;">
-                                        <svg class="btn__spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <circle cx="12" cy="12" r="10" stroke-dasharray="30 60"/>
-                                        </svg>
-                                    </span>
-                                </button>
-                            </div>
-                        </form>
-
-                        <div class="profile-divider">
-                            <span>oder</span>
-                        </div>
-
-                        <button type="button" class="btn btn--secondary btn--full-width" id="btn-show-register">
-                            Neues Konto erstellen
-                        </button>
+                <!-- Angemeldet: Profil-Bereich -->
+                <div id="profile-logged-in" style="display: none;">
+                    <div class="card card--padded profile-user">
+                        <span class="profile-user__avatar"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 5.9c1.16 0 2.1.94 2.1 2.1s-.94 2.1-2.1 2.1S9.9 9.16 9.9 8s.94-2.1 2.1-2.1m0 9c2.97 0 6.1 1.46 6.1 2.1v1.1H5.9V17c0-.64 3.13-2.1 6.1-2.1M12 4C9.79 4 8 5.79 8 8s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 9c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z"/></svg></span>
+                        <span class="profile-user__info">
+                            <span class="profile-user__label">Angemeldet als</span>
+                            <span class="profile-user__email" id="profile-email">user@example.com</span>
+                        </span>
                     </div>
 
-                    <!-- Angemeldet: Profil-Bereich -->
-                    <div id="profile-logged-in" class="profile-section" style="display: none;">
-                        <div class="profile-user">
-                            <div class="profile-user__avatar">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                                    <circle cx="12" cy="7" r="4"/>
-                                </svg>
-                            </div>
-                            <div class="profile-user__info">
-                                <span class="profile-user__label">Angemeldet als</span>
-                                <span class="profile-user__email" id="profile-email">user@example.com</span>
-                            </div>
-                            <svg class="profile-user__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                                <polyline points="22 4 12 14.01 9 11.01"/>
-                            </svg>
-                        </div>
+                    <hr class="section-divider">
 
-                        <div class="profile-sync">
-                            <div class="profile-sync__header">
-                                <h3 class="profile-sync__title">Synchronisation</h3>
-                                <span class="profile-sync__status" id="sync-status">
-                                    <span class="profile-sync__dot profile-sync__dot--synced"></span>
-                                    <span id="sync-status-text">Alles synchronisiert</span>
-                                </span>
-                            </div>
-                            <button type="button" class="btn btn--secondary btn--full-width" id="btn-sync-now">
-                                <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="23 4 23 10 17 10"/>
-                                    <polyline points="1 20 1 14 7 14"/>
-                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                                </svg>
-                                <span>Jetzt synchronisieren</span>
-                            </button>
-                            <p class="profile-sync__last" id="sync-last-time">Letzte Sync: vor 5 Minuten</p>
+                    <div class="card card--padded">
+                        <div class="card__header card__header--spread">
+                            <h3 class="card__title">Synchronisation</h3>
+                            <span class="profile-sync__status" id="sync-status">
+                                <span class="profile-sync__dot profile-sync__dot--synced"></span>
+                                <span id="sync-status-text">Alles synchronisiert</span>
+                            </span>
                         </div>
+                        <p class="card__text" id="sync-last-time">Letzte Synchronisation: –</p>
+                        <button type="button" class="btn btn--tonal btn--full-width card__action" id="btn-sync-now"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg><span>Jetzt synchronisieren</span></button>
+                    </div>
 
-                        <div class="profile-change-password">
-                            <button type="button" class="btn btn--secondary btn--full-width" id="btn-show-change-password" aria-label="Kennwort ändern">
-                                Kennwort ändern
-                            </button>
-                            <div id="profile-change-password-form" class="profile-change-password-form profile-change-password-form--hidden">
-                                <h3 class="profile-sync__title">Kennwort ändern</h3>
-                                <form id="form-change-password" class="form profile-form">
-                                    <div class="form__group">
-                                        <label class="form__label" for="input-new-password">Neues Passwort</label>
-                                        <input type="password" id="input-new-password" class="input" placeholder="Mindestens 6 Zeichen" minlength="6" autocomplete="new-password">
-                                    </div>
-                                    <div class="form__group">
-                                        <label class="form__label" for="input-new-password-confirm">Neues Passwort bestätigen</label>
-                                        <input type="password" id="input-new-password-confirm" class="input" placeholder="Passwort wiederholen" minlength="6" autocomplete="new-password">
-                                    </div>
-                                    <div class="form__error" id="change-password-error"></div>
-                                    <div class="form__actions form__actions--stacked">
-                                        <button type="submit" class="btn btn--primary btn--full-width" id="btn-submit-change-password">
-                                            Kennwort aktualisieren
-                                        </button>
-                                    </div>
-                                </form>
-                                <button type="button" class="btn btn--secondary btn--full-width" id="btn-cancel-change-password">Abbrechen</button>
-                            </div>
-                        </div>
+                    <hr class="section-divider">
 
-                        <div class="profile-actions">
-                            <button type="button" class="btn btn--destructive btn--full-width" id="btn-logout">
-                                <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                                    <polyline points="16 17 21 12 16 7"/>
-                                    <line x1="21" y1="12" x2="9" y2="12"/>
-                                </svg>
-                                <span>Abmelden</span>
-                            </button>
+                    <div class="card card--padded profile-change-password">
+                        <button type="button" class="btn btn--outlined btn--full-width" id="btn-show-change-password">Passwort ändern</button>
+                        <div id="profile-change-password-form" class="profile-change-password-form profile-change-password-form--hidden">
+                            <h3 class="card__title">Passwort ändern</h3>
+                            <form id="form-change-password" class="form profile-form">
+                                <div class="form__group">
+                                    <label class="form__label" for="input-new-password">Neues Passwort</label>
+                                    <input type="password" id="input-new-password" class="input" placeholder="Mindestens 6 Zeichen" minlength="6" autocomplete="new-password">
+                                </div>
+                                <div class="form__group">
+                                    <label class="form__label" for="input-new-password-confirm">Neues Passwort bestätigen</label>
+                                    <input type="password" id="input-new-password-confirm" class="input" placeholder="Passwort wiederholen" minlength="6" autocomplete="new-password">
+                                </div>
+                                <div class="form__error" id="change-password-error"></div>
+                                <div class="sheet__actions">
+                                    <button type="button" class="btn btn--outlined" id="btn-cancel-change-password">Abbrechen</button>
+                                    <button type="submit" class="btn btn--primary" id="btn-submit-change-password">Speichern</button>
+                                </div>
+                            </form>
                         </div>
                     </div>
+
+                    <hr class="section-divider">
+
+                    <button type="button" class="btn btn--outlined-danger btn--full-width" id="btn-logout"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg><span>Abmelden</span></button>
                 </div>
             </section>
         </main>
 
         <!-- Bottom Navigation -->
         <nav class="nav" role="navigation" aria-label="Hauptnavigation">
-            <button class="nav__item nav__item--active" data-nav="timer" aria-label="Timer">
-                <svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 6v6l4 2"/>
-                </svg>
+            <button class="nav__item nav__item--active" data-nav="timer" aria-label="Timer" aria-current="page">
+                <span class="nav__indicator">
+                    <svg class="nav__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+                </span>
                 <span class="nav__label">Timer</span>
             </button>
             <button class="nav__item" data-nav="entries" aria-label="Einträge">
-                <svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
-                </svg>
+                <span class="nav__indicator">
+                    <svg class="nav__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
+                </span>
                 <span class="nav__label">Einträge</span>
             </button>
             <button class="nav__item" data-nav="analysis" aria-label="Auswertung">
-                <svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 3v18h18"/>
-                    <path d="M18 9l-5 5-4-4-3 3"/>
-                </svg>
+                <span class="nav__indicator">
+                    <svg class="nav__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 20c1.1 0 2-.9 2-2v-7c0-1.1-.9-2-2-2s-2 .9-2 2v7c0 1.1.9 2 2 2zm10-5v3c0 1.1.9 2 2 2s2-.9 2-2v-3c0-1.1-.9-2-2-2s-2 .9-2 2zm-4 5c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2s-2 .9-2 2v12c0 1.1.9 2 2 2z"/></svg>
+                </span>
                 <span class="nav__label">Auswertung</span>
             </button>
             <button class="nav__item" data-nav="management" aria-label="Verwaltung">
-                <svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                </svg>
+                <span class="nav__indicator">
+                    <svg class="nav__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                </span>
                 <span class="nav__label">Verwaltung</span>
             </button>
         </nav>
     </div>
 
-    <!-- Modal: Save Entry (after stopping timer) -->
-    <div id="modal-save-entry" class="modal modal--save-entry" role="dialog" aria-modal="true" aria-labelledby="modal-save-title">
-        <div class="modal__backdrop" data-save-entry-backdrop></div>
-        <div class="modal__content">
-            <div class="modal__header">
-                <h2 id="modal-save-title" class="modal__title">Eintrag speichern</h2>
-                <button type="button" class="modal__close" data-discard-entry aria-label="Verwerfen">
-                    <svg class="modal__close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M18 6L6 18M6 6l12 12"/>
-                    </svg>
+    <!-- Sheet: Eintrag speichern (nach Stop) -->
+    <div id="modal-save-entry" class="modal modal--sheet" role="dialog" aria-modal="true" aria-labelledby="modal-save-title">
+        <div class="modal__backdrop"></div>
+        <div class="modal__content sheet">
+            <div class="sheet__header">
+                <h2 id="modal-save-title" class="sheet__title">Eintrag speichern</h2>
+                <button type="button" class="icon-btn" id="btn-save-entry-close" aria-label="Schließen" title="Schließen">
+                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
                 </button>
             </div>
-            <form id="form-save-entry" class="form">
+            <form id="form-save-entry" class="form" novalidate>
                 <div class="form__group">
                     <label class="form__label" for="entry-duration">Dauer</label>
-                    <input type="text" id="entry-duration" class="input" readonly>
+                    <input type="text" id="entry-duration" class="input input--readonly" readonly tabindex="-1">
                 </div>
                 <div class="form__group">
-                    <label class="form__label" for="entry-company">Unternehmen *</label>
-                    <select id="entry-company" class="select" required>
-                        <option value="">Bitte wählen...</option>
-                        <!-- Dynamisch gefüllt -->
-                    </select>
-                    <div id="inline-add-company" class="form__inline-add">
-                        <input type="text" id="inline-company-name" class="input" placeholder="Unternehmensname eingeben...">
-                        <button type="button" id="btn-inline-add-company" class="btn btn--primary btn--small">
-                            <svg class="btn__icon" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                            </svg>
-                        </button>
-                        <button type="button" id="btn-inline-cancel-company" class="btn btn--secondary btn--small" aria-label="Abbrechen">
-                            <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M18 6L6 18M6 6l12 12"/>
-                            </svg>
-                        </button>
-                    </div>
+                    <span class="form__label">Unternehmen</span>
+                    <div id="entry-company-field"></div>
                 </div>
                 <div class="form__group">
-                    <label class="form__label" for="entry-category">Kategorie</label>
-                    <select id="entry-category" class="select">
-                        <option value="">Keine Kategorie</option>
-                        <!-- Dynamisch gefüllt -->
-                        <option value="__new__">+ Neue Kategorie...</option>
-                    </select>
-                    <div id="inline-add-category" class="form__inline-add">
-                        <input type="text" id="inline-category-name" class="input" placeholder="Kategoriename eingeben...">
-                        <button type="button" id="btn-inline-add-category" class="btn btn--primary btn--small">
-                            <svg class="btn__icon" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                            </svg>
-                        </button>
-                        <button type="button" id="btn-inline-cancel-category" class="btn btn--secondary btn--small">
-                            <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M18 6L6 18M6 6l12 12"/>
-                            </svg>
-                        </button>
-                    </div>
+                    <span class="form__label">Kategorie</span>
+                    <div id="entry-category-field"></div>
                 </div>
                 <div class="form__group">
-                    <label class="form__label" for="entry-note">Notiz</label>
-                    <textarea id="entry-note" class="textarea" rows="3" placeholder="Optional..."></textarea>
+                    <label class="form__label" for="entry-note">Notiz (optional)</label>
+                    <textarea id="entry-note" class="textarea" rows="3"></textarea>
                 </div>
-                <div class="form__actions">
-                    <button type="button" class="btn btn--secondary" data-discard-entry>Verwerfen</button>
+                <p class="form__error form__error--center" id="save-entry-error" hidden></p>
+                <div class="sheet__actions">
+                    <button type="button" class="btn btn--secondary" id="btn-save-entry-discard">Verwerfen</button>
                     <button type="submit" class="btn btn--primary" id="btn-save-entry">Speichern</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Modal: Edit Entry -->
-    <div id="modal-edit-entry" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-edit-title">
-        <div class="modal__backdrop" data-close-modal></div>
-        <div class="modal__content">
-            <h2 id="modal-edit-title" class="modal__title">Eintrag bearbeiten</h2>
-            <form id="form-edit-entry" class="form">
-                <input type="hidden" id="edit-entry-id">
-                <div class="form__group form__group--date-picker">
-                    <label class="form__label">Datum</label>
-                    <button type="button" class="input input--date" id="edit-date-btn">
-                        <span id="edit-date-display">01.01.2026</span>
-                        <svg class="input__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                            <line x1="16" y1="2" x2="16" y2="6"/>
-                            <line x1="8" y1="2" x2="8" y2="6"/>
-                            <line x1="3" y1="10" x2="21" y2="10"/>
-                        </svg>
-                    </button>
-                    <input type="hidden" id="edit-date" required>
-                    <!-- Kalender Popup -->
-                    <div class="edit-date-picker" id="edit-date-picker">
-                        <div class="edit-date-picker__header">
-                            <button type="button" class="date-picker__nav" id="btn-edit-picker-prev" aria-label="Vorheriger Monat">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M15 18l-6-6 6-6"/>
-                                </svg>
-                            </button>
-                            <span class="date-picker__title" id="edit-picker-title">Januar 2026</span>
-                            <button type="button" class="date-picker__nav" id="btn-edit-picker-next" aria-label="Nächster Monat">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M9 18l6-6-6-6"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div class="date-picker__weekdays">
-                            <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
-                        </div>
-                        <div class="date-picker__days" id="edit-picker-days">
-                            <!-- Dynamisch gefüllt -->
-                        </div>
-                    </div>
+    <!-- Sheet: Eintrag bearbeiten -->
+    <div id="modal-edit-entry" class="modal modal--sheet" role="dialog" aria-modal="true" aria-labelledby="modal-edit-title">
+        <div class="modal__backdrop" data-close-edit></div>
+        <div class="modal__content sheet">
+            <div class="sheet__handle" aria-hidden="true"></div>
+            <h2 id="modal-edit-title" class="sheet__title sheet__title--large">Eintrag bearbeiten</h2>
+            <form id="form-edit-entry" class="form" novalidate>
+                <div class="form__group">
+                    <label class="form__label" for="edit-date">Datum</label>
+                    <input type="date" id="edit-date" class="input" min="2000-01-01" max="2100-12-31" required>
                 </div>
                 <div class="form__row">
                     <div class="form__group">
                         <label class="form__label" for="edit-start">Start</label>
-                        <input type="text" id="edit-start" class="input input--time" required placeholder="00:00" maxlength="5" pattern="[0-2][0-9]:[0-5][0-9]">
+                        <input type="time" id="edit-start" class="input" required>
                     </div>
                     <div class="form__group">
                         <label class="form__label" for="edit-end">Ende</label>
-                        <input type="text" id="edit-end" class="input input--time" required placeholder="00:00" maxlength="5" pattern="[0-2][0-9]:[0-5][0-9]">
+                        <input type="time" id="edit-end" class="input" required>
+                    </div>
+                </div>
+                <div class="form__row">
+                    <div class="form__group">
+                        <label class="form__label" for="edit-pause">Pause</label>
+                        <input type="time" id="edit-pause" class="input" aria-label="Pause (Std:Min)" title="Pause (Std:Min)">
+                    </div>
+                    <div class="form__group">
+                        <label class="form__label" for="edit-duration">Dauer</label>
+                        <input type="text" id="edit-duration" class="input input--readonly" readonly tabindex="-1">
                     </div>
                 </div>
                 <div class="form__group">
-                    <label class="form__label" for="edit-company">Unternehmen *</label>
-                    <select id="edit-company" class="select" required>
-                        <option value="">Bitte wählen...</option>
-                    </select>
+                    <span class="form__label">Unternehmen *</span>
+                    <div id="edit-company-field"></div>
                 </div>
                 <div class="form__group">
-                    <label class="form__label" for="edit-category">Kategorie</label>
-                    <select id="edit-category" class="select">
-                        <option value="">Keine Kategorie</option>
-                    </select>
+                    <span class="form__label">Kategorie</span>
+                    <div id="edit-category-field"></div>
                 </div>
                 <div class="form__group">
                     <label class="form__label" for="edit-note">Notiz</label>
                     <textarea id="edit-note" class="textarea" rows="3" placeholder="Optional..."></textarea>
                 </div>
-                <div class="form__actions">
-                    <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
-                    <button type="submit" class="btn btn--primary">Speichern</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal: Add Company -->
-    <div id="modal-add-company" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-company-title">
-        <div class="modal__backdrop" data-close-modal></div>
-        <div class="modal__content">
-            <h2 id="modal-company-title" class="modal__title">Unternehmen hinzufügen</h2>
-            <form id="form-add-company" class="form">
-                <div class="form__group">
-                    <label class="form__label" for="company-name">Name</label>
-                    <input type="text" id="company-name" class="input" required placeholder="z.B. Musterfirma GmbH">
-                </div>
-                <div class="form__actions">
-                    <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
-                    <button type="submit" class="btn btn--primary">Hinzufügen</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal: Add Category -->
-    <div id="modal-add-category" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-category-title">
-        <div class="modal__backdrop" data-close-modal></div>
-        <div class="modal__content">
-            <h2 id="modal-category-title" class="modal__title">Kategorie hinzufügen</h2>
-            <form id="form-add-category" class="form">
-                <div class="form__group">
-                    <label class="form__label" for="category-name">Name</label>
-                    <input type="text" id="category-name" class="input" required placeholder="z.B. Meetings">
-                </div>
-                <div class="form__actions">
-                    <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
-                    <button type="submit" class="btn btn--primary">Hinzufügen</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal: Confirm Delete -->
-    <div id="modal-confirm-delete" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-delete-title">
-        <div class="modal__backdrop" data-close-modal></div>
-        <div class="modal__content">
-            <h2 id="modal-delete-title" class="modal__title">Löschen bestätigen</h2>
-            <p class="modal__text" id="delete-message">Möchten Sie diesen Eintrag wirklich löschen?</p>
-            <input type="hidden" id="delete-item-id">
-            <input type="hidden" id="delete-item-type">
-            <div class="form__actions">
-                <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
-                <button type="button" id="btn-confirm-delete" class="btn btn--destructive">Löschen</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Umbenennen (Unternehmen/Kategorie) -->
-    <div id="modal-rename-item" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-rename-title">
-        <div class="modal__backdrop" data-close-modal></div>
-        <div class="modal__content">
-            <h2 id="modal-rename-title" class="modal__title">Umbenennen</h2>
-            <div class="form__group">
-                <label class="form__label" for="rename-item-name">Name</label>
-                <input type="text" id="rename-item-name" class="input" placeholder="Neuer Name" autocomplete="off">
-            </div>
-            <input type="hidden" id="rename-item-id">
-            <input type="hidden" id="rename-item-type">
-            <div class="form__actions">
-                <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
-                <button type="button" id="btn-confirm-rename" class="btn btn--primary">Umbenennen</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Discard Confirmation (for Save Entry) -->
-    <div id="modal-discard-confirm" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="modal-discard-title">
-        <div class="modal__backdrop"></div>
-        <div class="modal__content modal__content--compact">
-            <h2 id="modal-discard-title" class="modal__title">Änderungen speichern?</h2>
-            <p class="modal__text">Sie haben einen Zeiteintrag erfasst. Möchten Sie diesen speichern oder verwerfen?</p>
-            <div class="form__actions form__actions--stacked">
-                <button type="button" class="btn btn--primary" id="btn-confirm-save">Speichern</button>
-                <button type="button" class="btn btn--destructive" id="btn-confirm-discard">Verwerfen</button>
-                <button type="button" class="btn btn--secondary" id="btn-confirm-cancel">Abbrechen</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Export Format Selection -->
-    <div id="modal-export-format" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="modal-export-title">
-        <div class="modal__backdrop" data-close-modal></div>
-        <div class="modal__content modal__content--compact">
-            <h2 id="modal-export-title" class="modal__title">Export-Format wählen</h2>
-            <p class="modal__text">In welchem Format möchten Sie Ihre Daten exportieren?</p>
-            <div class="form__actions form__actions--stacked">
-                <button type="button" class="btn btn--primary" id="btn-export-as-json">
-                    <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                    </svg>
-                    Als JSON exportieren
-                </button>
-                <button type="button" class="btn btn--primary" id="btn-export-as-csv">
-                    <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                        <line x1="8" y1="13" x2="16" y2="13"/>
-                        <line x1="8" y1="17" x2="16" y2="17"/>
-                    </svg>
-                    Als CSV exportieren
-                </button>
-                <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Delete All Confirmation -->
-    <div id="modal-delete-all" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="modal-delete-all-title">
-        <div class="modal__backdrop" data-close-modal></div>
-        <div class="modal__content modal__content--compact">
-            <h2 id="modal-delete-all-title" class="modal__title modal__title--danger">Alle Daten löschen?</h2>
-            <p class="modal__text">Diese Aktion kann nicht rückgängig gemacht werden! Alle Unternehmen, Kategorien und Zeiteinträge werden unwiderruflich gelöscht.</p>
-            <div class="form__group">
-                <label class="form__label">Was soll gelöscht werden?</label>
-                <div class="radio-group">
-                    <label class="radio-option">
-                        <input type="radio" name="delete-scope" value="local" checked>
-                        <span>Nur lokale Daten</span>
-                    </label>
-                    <label class="radio-option" id="delete-scope-both-label">
-                        <input type="radio" name="delete-scope" value="both" id="delete-scope-both" disabled>
-                        <span>Lokal und Cloud</span>
-                    </label>
-                </div>
-            </div>
-            <div class="form__group">
-                <label class="form__label" for="delete-confirmation-input">Geben Sie <strong>DELETE</strong> ein um zu bestätigen:</label>
-                <input type="text" id="delete-confirmation-input" class="input" placeholder="DELETE" autocomplete="off">
-            </div>
-            <div class="form__actions">
-                <button type="button" class="btn btn--secondary" data-close-modal>Abbrechen</button>
-                <button type="button" class="btn btn--destructive btn--disabled" id="btn-confirm-delete-all" disabled>Unwiderruflich löschen</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Initial Company Setup (appears on first start) -->
-    <div id="modal-initial-company" class="modal modal--initial" role="dialog" aria-modal="true" aria-labelledby="modal-initial-company-title">
-        <div class="modal__backdrop"></div>
-        <div class="modal__content">
-            <h2 id="modal-initial-company-title" class="modal__title">Willkommen bei TimeTrack!</h2>
-            <p class="modal__text">Um zu beginnen, legen Sie bitte Ihr erstes Unternehmen an. Dieses wird als Standard für Ihre Zeiterfassungen verwendet.</p>
-            <form id="form-initial-company" class="form">
-                <div class="form__group">
-                    <label class="form__label" for="initial-company-name">Unternehmensname *</label>
-                    <input type="text" id="initial-company-name" class="input" required placeholder="z.B. Musterfirma GmbH" autofocus>
-                </div>
-                <div class="form__actions">
-                    <button type="submit" class="btn btn--primary btn--full-width" id="btn-save-initial-company">Unternehmen anlegen</button>
+                <div class="sheet__actions">
+                    <button type="button" class="btn btn--outlined" data-close-edit>Abbrechen</button>
+                    <button type="submit" class="btn btn--primary" id="btn-edit-save">Speichern</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- Modal: Register -->
-    <div id="modal-register" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-register-title">
+    <div id="modal-register" class="modal modal--confirm modal--auth" role="dialog" aria-modal="true" aria-labelledby="modal-register-title">
         <div class="modal__backdrop" data-close-modal></div>
         <div class="modal__content">
             <div class="modal__header">
@@ -999,7 +434,7 @@
             <form id="form-register" class="form">
                 <div class="form__group">
                     <label class="form__label" for="register-email">E-Mail</label>
-                    <input type="email" id="register-email" class="input" placeholder="deine@email.de" required autocomplete="email">
+                    <input type="email" id="register-email" class="input" placeholder="name@beispiel.de" required autocomplete="email">
                 </div>
                 <div class="form__group">
                     <label class="form__label" for="register-password">Passwort (min. 6 Zeichen)</label>
@@ -1026,7 +461,7 @@
     </div>
 
     <!-- Modal: Passwort zurücksetzen (Link anfordern) -->
-    <div id="modal-forgot-password" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-forgot-password-title">
+    <div id="modal-forgot-password" class="modal modal--confirm modal--auth" role="dialog" aria-modal="true" aria-labelledby="modal-forgot-password-title">
         <div class="modal__backdrop" data-close-modal></div>
         <div class="modal__content">
             <div class="modal__header">
@@ -1037,11 +472,11 @@
                     </svg>
                 </button>
             </div>
-            <p class="modal__description">Gib deine E-Mail-Adresse ein. Wir senden dir einen Link zum Zurücksetzen des Passworts.</p>
+            <p class="modal__description">Geben Sie Ihre E-Mail-Adresse ein. Wir senden Ihnen einen Link zum Zurücksetzen des Passworts.</p>
             <form id="form-forgot-password" class="form">
                 <div class="form__group">
                     <label class="form__label" for="forgot-email">E-Mail</label>
-                    <input type="email" id="forgot-email" class="input" placeholder="deine@email.de" required autocomplete="email">
+                    <input type="email" id="forgot-email" class="input" placeholder="name@beispiel.de" required autocomplete="email">
                 </div>
                 <div class="form__error" id="forgot-error"></div>
                 <div class="form__success" id="forgot-success"></div>
@@ -1061,7 +496,7 @@
     </div>
 
     <!-- Modal: Neues Passwort setzen (nach Klick auf E-Mail-Link) -->
-    <div id="modal-reset-password" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-reset-password-title">
+    <div id="modal-reset-password" class="modal modal--confirm modal--auth" role="dialog" aria-modal="true" aria-labelledby="modal-reset-password-title">
         <div class="modal__backdrop" data-close-modal></div>
         <div class="modal__content">
             <div class="modal__header">
@@ -1108,6 +543,11 @@
     <script src="js/db.js"></script>
     <script src="js/timer.js"></script>
     <script src="js/ui.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/timer-view.js"></script>
+    <script src="js/entries-view.js"></script>
+    <script src="js/analysis-view.js"></script>
+    <script src="js/management-view.js"></script>
     <script src="js/config.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/auth.js"></script>

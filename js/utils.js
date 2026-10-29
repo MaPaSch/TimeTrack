@@ -38,7 +38,7 @@ const Utils = (function() {
     }
 
     /**
-     * Formatiert Millisekunden zu kompakter Darstellung (z.B. "2h 30m")
+     * Formatiert Millisekunden zu kompakter Darstellung (z. B. "2h 30m")
      * @param {number} ms - Millisekunden
      * @returns {string} Kompakte Zeit
      */
@@ -74,7 +74,12 @@ const Utils = (function() {
         if (format === 'weekday') {
             if (isToday) return 'Heute';
             if (isYesterday) return 'Gestern';
-            return date.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+            // Jahr nur anhängen, wenn es nicht das aktuelle ist
+            const options = { weekday: 'long', day: 'numeric', month: 'long' };
+            if (date.getFullYear() !== today.getFullYear()) {
+                options.year = 'numeric';
+            }
+            return date.toLocaleDateString('de-DE', options);
         }
 
         if (format === 'long') {
@@ -183,33 +188,6 @@ const Utils = (function() {
                 acc[key] = groups[key];
                 return acc;
             }, {});
-    }
-
-    /**
-     * Berechnet die Gesamtdauer einer Eintrags-Liste
-     * @param {Array} entries - Array von TimeEntry-Objekten
-     * @returns {number} Gesamtdauer in ms
-     */
-    function calculateTotalDuration(entries) {
-        return entries.reduce((total, entry) => total + (entry.duration || 0), 0);
-    }
-
-    /**
-     * Debounce-Funktion für Performance
-     * @param {Function} func 
-     * @param {number} wait 
-     * @returns {Function}
-     */
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
     }
 
     /**
@@ -335,8 +313,6 @@ const Utils = (function() {
         formatNavigatorDate,
         getWeekNumber,
         groupEntriesByDate,
-        calculateTotalDuration,
-        debounce,
         dateTimeToTimestamp,
         timestampToDateTime
     };

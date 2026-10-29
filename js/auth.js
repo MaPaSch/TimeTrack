@@ -26,7 +26,9 @@ const Auth = (function() {
     async function init() {
         // Prüfen ob Supabase verfügbar ist
         if (!SupabaseClient.isAvailable()) {
-            console.log('Auth: Lokaler Modus (Supabase nicht verfügbar)');
+            // SDK nicht geladen (z. B. offline ohne Cache): eine gespeicherte Anmeldung
+            // hält den Cloud-Modus aufrecht, damit Löschungen in die Sync-Queue kommen
+            if (useStoredSession()) return;
             currentMode = AUTH_MODE.LOCAL;
             notifyListeners('LOCAL_MODE', null);
             return;
@@ -39,15 +41,19 @@ const Auth = (function() {
                 currentSession = session;
                 currentUser = session.user;
                 currentMode = AUTH_MODE.CLOUD;
-                console.log('Auth: Cloud-Modus aktiv für', currentUser.email);
                 notifyListeners('SIGNED_IN', session);
+            } else if (!SupabaseClient.isOnline() && useStoredSession()) {
+                // Offline mit abgelaufenem Token: angemeldet bleiben, der Token wird
+                // beim nächsten Sync nach Rückkehr der Verbindung erneuert
             } else {
                 currentMode = AUTH_MODE.LOCAL;
                 notifyListeners('SIGNED_OUT', null);
             }
         } catch (error) {
             console.error('Auth: Fehler beim Laden der Session:', error);
-            currentMode = AUTH_MODE.LOCAL;
+            if (!useStoredSession()) {
+                currentMode = AUTH_MODE.LOCAL;
+            }
         }
 
         // Auth State Changes überwachen
@@ -57,20 +63,56 @@ const Auth = (function() {
     }
 
     /**
+     * Liest die von Supabase in localStorage gespeicherte Session (auch abgelaufen)
+     * @returns {Object|null}
+     */
+    function readStoredSession() {
+        try {
+            const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
+            if (!key) return null;
+            const stored = JSON.parse(localStorage.getItem(key));
+            const session = stored && stored.currentSession ? stored.currentSession : stored;
+            return session && session.user ? session : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /**
+     * Übernimmt eine gespeicherte Session, wenn keine aktuelle geladen werden kann
+     * (offline). Der Nutzer bleibt im Cloud-Modus; Änderungen werden später gepusht.
+     * @returns {boolean} true, wenn eine gespeicherte Session übernommen wurde
+     */
+    function useStoredSession() {
+        const session = readStoredSession();
+        if (!session) return false;
+        currentSession = session;
+        currentUser = session.user;
+        currentMode = AUTH_MODE.CLOUD;
+        notifyListeners('SIGNED_IN', session);
+        return true;
+    }
+
+    /**
      * Behandelt Auth State Changes von Supabase
      * @param {string} event 
      * @param {Object} session 
      */
     function handleAuthStateChange(event, session) {
-        console.log('Auth State Change:', event);
-        
         switch (event) {
             case 'SIGNED_IN':
             case 'INITIAL_SESSION':
+            case 'TOKEN_REFRESHED':
+            case 'USER_UPDATED':
+            case 'PASSWORD_RECOVERY':
+                // Alle Events mit Session halten den Cloud-Modus aufrecht (Token-Refresh
+                // passiert stündlich und darf die App nicht "abmelden")
                 if (session) {
                     currentSession = session;
                     currentUser = session.user;
                     currentMode = AUTH_MODE.CLOUD;
+                } else if (!SupabaseClient.isOnline() && readStoredSession()) {
+                    // Offline kann das SDK abgelaufene Tokens nicht erneuern – angemeldet bleiben
                 } else {
                     currentSession = null;
                     currentUser = null;
@@ -81,12 +123,6 @@ const Auth = (function() {
                 currentSession = null;
                 currentUser = null;
                 currentMode = AUTH_MODE.LOCAL;
-                break;
-            case 'TOKEN_REFRESHED':
-                currentSession = session;
-                break;
-            case 'USER_UPDATED':
-                currentUser = session?.user || null;
                 break;
         }
 
@@ -431,14 +467,6 @@ const Auth = (function() {
     }
 
     /**
-     * Gibt den aktuellen Auth-Modus zurück
-     * @returns {string} 'local' oder 'cloud'
-     */
-    function getMode() {
-        return currentMode;
-    }
-
-    /**
      * Prüft ob Cloud-Modus aktiv ist
      * @returns {boolean}
      */
@@ -454,14 +482,6 @@ const Auth = (function() {
         return currentUser?.id || null;
     }
 
-    /**
-     * Gibt die User-Email zurück (oder null)
-     * @returns {string|null}
-     */
-    function getUserEmail() {
-        return currentUser?.email || null;
-    }
-
     return {
         init,
         onAuthStateChange,
@@ -473,10 +493,8 @@ const Auth = (function() {
         getUser,
         getSession,
         isLoggedIn,
-        getMode,
         isCloudMode,
         getUserId,
-        getUserEmail,
         AUTH_MODE
     };
 })();

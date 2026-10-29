@@ -37,7 +37,6 @@ const SupabaseClient = (function() {
                 }
             });
             isInitialized = true;
-            console.log('Supabase Client initialisiert');
             return true;
         } catch (error) {
             console.error('Fehler bei Supabase-Initialisierung:', error);
@@ -219,44 +218,6 @@ const SupabaseClient = (function() {
     // Database Wrapper Funktionen
     // ========================================
 
-    /**
-     * SELECT-Query auf eine Tabelle
-     * @param {string} table 
-     * @returns {Object} Supabase Query Builder
-     */
-    function from(table) {
-        if (!isAvailable()) {
-            return createDummyQueryBuilder();
-        }
-        return client.from(table);
-    }
-
-    /**
-     * Erstellt einen Dummy Query Builder wenn Supabase nicht verfügbar ist
-     * @returns {Object}
-     */
-    function createDummyQueryBuilder() {
-        const dummy = {
-            select: () => dummy,
-            insert: () => dummy,
-            update: () => dummy,
-            delete: () => dummy,
-            eq: () => dummy,
-            neq: () => dummy,
-            gt: () => dummy,
-            gte: () => dummy,
-            lt: () => dummy,
-            lte: () => dummy,
-            is: () => dummy,
-            in: () => dummy,
-            order: () => dummy,
-            limit: () => dummy,
-            single: () => dummy,
-            then: (resolve) => resolve({ data: null, error: { message: 'Supabase nicht verfügbar' } })
-        };
-        return dummy;
-    }
-
     // ========================================
     // Sync Helper Funktionen
     // ========================================
@@ -376,9 +337,6 @@ const SupabaseClient = (function() {
      * @returns {Promise<Object>} { data, error }
      */
     async function upsertUserData(table, records) {
-        // #region agent log
-        fetch('http://127.0.0.1:7586/ingest/8726b05c-8248-44ce-855c-3a7e775ae39d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'042b70'},body:JSON.stringify({sessionId:'042b70',location:'supabase.js:upsertUserData:entry',message:'upsertUserData called',data:{table,recordsType:typeof records,isArray:Array.isArray(records),recordsKeys:records?Object.keys(Array.isArray(records)?records[0]||{}:records):null},timestamp:Date.now(),hypothesisId:'B,C',runId:'post-fix'})}).catch(()=>{});
-        // #endregion
         if (!isAvailable()) {
             return { data: null, error: { message: 'Supabase nicht verfügbar' } };
         }
@@ -394,10 +352,6 @@ const SupabaseClient = (function() {
             user_id: user.id,
             updated_at: new Date().toISOString()
         }));
-
-        // #region agent log
-        fetch('http://127.0.0.1:7586/ingest/8726b05c-8248-44ce-855c-3a7e775ae39d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'042b70'},body:JSON.stringify({sessionId:'042b70',location:'supabase.js:upsertUserData:beforeUpsert',message:'Data before upsert',data:{table,recordCount:recordsWithUserId.length,firstRecordKeys:recordsWithUserId[0]?Object.keys(recordsWithUserId[0]):null},timestamp:Date.now(),hypothesisId:'B,C',runId:'post-fix'})}).catch(()=>{});
-        // #endregion
 
         try {
             // Workaround: Direkter REST-API Aufruf um das SDK columns-Parameter Bug zu umgehen
@@ -418,19 +372,11 @@ const SupabaseClient = (function() {
             
             const responseData = await response.json();
             
-            // #region agent log
             if (!response.ok) {
-                console.error('[DEBUG] Upsert error for table:', table, 'Status:', response.status, 'Error:', JSON.stringify(responseData, null, 2));
                 return { data: null, error: responseData };
-            } else {
-                console.log('[DEBUG] Upsert success for table:', table, 'Count:', Array.isArray(responseData) ? responseData.length : 1);
-                return { data: responseData, error: null };
             }
-            // #endregion
+            return { data: responseData, error: null };
         } catch (error) {
-            // #region agent log
-            console.error('[DEBUG] Upsert exception for table:', table, 'Error:', error);
-            // #endregion
             return { data: null, error };
         }
     }
@@ -450,6 +396,16 @@ const SupabaseClient = (function() {
         }
 
         try {
+            // Textbausteine (Tabelle existiert erst nach Migration v3 – Fehler nur loggen)
+            const { error: snippetsError } = await client
+                .from('text_snippets')
+                .delete()
+                .eq('user_id', user.id);
+
+            if (snippetsError) {
+                console.warn('Textbausteine konnten nicht gelöscht werden:', snippetsError);
+            }
+
             // Reihenfolge wichtig wegen Foreign Keys: erst Einträge, dann Kategorien, dann Unternehmen
             const { error: entriesError } = await client
                 .from('time_entries')
@@ -481,7 +437,6 @@ const SupabaseClient = (function() {
                 return { success: false, error: companiesError };
             }
 
-            console.log('Alle Cloud-Daten erfolgreich gelöscht');
             return { success: true };
         } catch (error) {
             console.error('Fehler beim Löschen aller Cloud-Daten:', error);
@@ -504,7 +459,6 @@ const SupabaseClient = (function() {
         updateUser,
         onAuthStateChange,
         // Database
-        from,
         fetchUserData,
         insertUserData,
         updateUserData,

@@ -3,7 +3,7 @@
  * Offline-Funktionalität mit Cache-First Strategie
  */
 
-const CACHE_NAME = 'timetrack-v1';
+const CACHE_NAME = 'timetrack-v8';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -12,30 +12,42 @@ const STATIC_ASSETS = [
     '/js/db.js',
     '/js/timer.js',
     '/js/ui.js',
+    '/js/components.js',
+    '/js/timer-view.js',
+    '/js/entries-view.js',
+    '/js/analysis-view.js',
+    '/js/management-view.js',
+    '/js/config.js',
+    '/js/supabase.js',
+    '/js/auth.js',
+    '/js/sync.js',
     '/js/app.js',
     '/manifest.json',
-    '/icons/icon.svg'
+    '/icons/icon.svg',
+    '/icons/icon-192.png',
+    '/icons/icon-512.png',
+    '/icons/icon-maskable-512.png',
+    '/icons/apple-touch-icon.png'
 ];
 
-// Google Fonts URLs zum Cachen
-const FONT_URLS = [
-    'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap'
-];
+// Supabase SDK (feste Version, siehe index.html) – ohne Cache startet die App offline nur lokal
+const SDK_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0';
 
 /**
  * Install Event - Statische Assets cachen
  */
 self.addEventListener('install', (event) => {
-    console.log('[SW] Installing...');
-    
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
-                console.log('[SW] Caching static assets');
-                return cache.addAll(STATIC_ASSETS);
+                return Promise.all([
+                    cache.addAll(STATIC_ASSETS),
+                    // SDK separat: ein CDN-Fehler darf die Installation nicht verhindern
+                    cache.add(new Request(SDK_URL, { mode: 'cors' }))
+                        .catch((error) => console.warn('[SW] SDK nicht gecacht:', error))
+                ]);
             })
             .then(() => {
-                console.log('[SW] Install complete');
                 return self.skipWaiting();
             })
             .catch((error) => {
@@ -48,8 +60,6 @@ self.addEventListener('install', (event) => {
  * Activate Event - Alte Caches löschen
  */
 self.addEventListener('activate', (event) => {
-    console.log('[SW] Activating...');
-    
     event.waitUntil(
         caches.keys()
             .then((cacheNames) => {
@@ -57,13 +67,11 @@ self.addEventListener('activate', (event) => {
                     cacheNames
                         .filter((name) => name !== CACHE_NAME)
                         .map((name) => {
-                            console.log('[SW] Deleting old cache:', name);
                             return caches.delete(name);
                         })
                 );
             })
             .then(() => {
-                console.log('[SW] Activate complete');
                 return self.clients.claim();
             })
     );
@@ -81,8 +89,8 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Google Fonts separat behandeln (Cache mit Network-Update)
-    if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+    // Google Fonts und Supabase SDK: aus dem Cache, parallel aktualisieren
+    if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com' || url.href === SDK_URL) {
         event.respondWith(handleFonts(request));
         return;
     }
@@ -161,18 +169,3 @@ async function fetchAndCache(request, cache) {
         // Netzwerkfehler ignorieren - Cache bleibt bestehen
     }
 }
-
-/**
- * Message Event - Für manuelle Cache-Updates
- */
-self.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
-        self.skipWaiting();
-    }
-    
-    if (event.data && event.data.type === 'CLEAR_CACHE') {
-        caches.delete(CACHE_NAME).then(() => {
-            console.log('[SW] Cache cleared');
-        });
-    }
-});
